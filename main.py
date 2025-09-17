@@ -1,7 +1,10 @@
 # === Imports & theme ===
-import json, pandas as pd, numpy as np
+import json
+import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+
 sns.set_theme(style="whitegrid", context="talk")
 
 # === Data inlezen (robust voor list-of-records of {"data": [...]}) ===
@@ -34,6 +37,7 @@ make_scaled("T10N", "T10N_C")  # 10cm-min (optioneel)
 # Wind (m/s)
 make_scaled("FG", "FG_ms")    # gem. windsnelheid
 make_scaled("FXX", "FXX_ms")  # hoogste windstoot
+
 # Windrichting (graden) zit meestal in DDVEC (al in graden)
 if "DDVEC" in df.columns:
     df["DDVEC"] = pd.to_numeric(df["DDVEC"], errors="coerce")
@@ -59,10 +63,14 @@ df["weekday"] = df["date"].dt.weekday  # 0=maandag
 
 # Seizoen (NL)
 def season(m):
-    return ("winter" if m in [12,1,2] else
-            "lente"  if m in [3,4,5] else
-            "zomer"  if m in [6,7,8] else
-            "herfst")
+    return (
+        "winter" if m in [12, 1, 2] else
+        "lente"  if m in [3, 4, 5] else
+        "zomer"  if m in [6, 7, 8] else
+        "herfst"
+    )
 df["season"] = df["month"].apply(season)
 
-df.head()
+# Voor een snelle check: print de eerste 5 rijen
+if __name__ == "__main__":
+    print(df.head())
