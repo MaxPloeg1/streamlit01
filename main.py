@@ -10,6 +10,38 @@ import plotly.express as px
 
 sns.set_theme(style="whitegrid")
 
+if page == "🏠 Intro":
+    st.title("📊 Amsterdam Weerdata Dashboard")
+    st.markdown(
+        """
+        Welkom bij het interactieve weerdashboard voor Amsterdam.  
+        Hier kun je gegevens bekijken zoals temperatuur, neerslag en zonuren.  
+
+        **Stap 1:** Kies een dataset (jaargang).  
+        """
+    )
+
+    datasets = {
+        "2021–2022": "amsterdam_2021_2022.json",
+        "2022–2023": "amsterdam_2022_2023.json",
+        "2023–2024": "amsterdam_2023_2024.json",
+    }
+
+    choice = st.selectbox("📅 Kies een periode:", list(datasets.keys()))
+
+    if choice:
+        path = datasets[choice]
+        st.success(f"Je hebt gekozen voor dataset: **{choice}**")
+
+        import json, pandas as pd
+        with open(path, "r", encoding="utf-8") as f:
+            raw = json.load(f)
+        records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
+        df_preview = pd.json_normalize(records)
+
+        st.subheader(f"Voorbeeld data ({choice})")
+        st.dataframe(df_preview.head())
+
 # === Data inlezen ===
 @st.cache_data
 def load_data(path="amsterdam_2023_2024.json"):
