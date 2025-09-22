@@ -35,9 +35,9 @@ def make_scaled(src, dest, divisor=10):
     if src in df.columns:
         df[dest] = pd.to_numeric(df[src], errors="coerce") / divisor
 
-make_scaled("TG", "TG_C")   # Gemiddelde temperatuur
-make_scaled("RH", "RH_mm")  # Neerslag
-make_scaled("SQ", "SQ_h")   # Zonuren
+make_scaled("TG", "TG_C")
+make_scaled("RH", "RH_mm")
+make_scaled("SQ", "SQ_h")
 
 # Extra tijd-features
 df["year"] = df["date"].dt.year
@@ -53,44 +53,13 @@ page = st.sidebar.radio(
 # === Pagina’s ===
 if page == "🏠 Intro":
     st.title("🌍 Weer Dashboard Amsterdam")
-    st.markdown(f"**Geselecteerde dataset:** {dataset_label}")
-    st.write("Gebruik de navigatie links om de analyses te bekijken.")
+    st.markdown(f"**Dataset:** {dataset_label}")
 
 elif page == "📊 Analyses":
     st.header("📊 Tijdreeksen")
-
-    # Selecteer welke maatstaven getoond worden
-    opties = []
-    if "TG_C" in df.columns: opties.append("Gemiddelde temperatuur (°C)")
-    if "RH_mm" in df.columns: opties.append("Neerslag (mm)")
-    if "SQ_h" in df.columns: opties.append("Zonuren (h)")
-
-    keuze = st.multiselect("Kies grootheden:", opties, default=opties)
-
-    mapping = {
-        "Gemiddelde temperatuur (°C)": "TG_C",
-        "Neerslag (mm)": "RH_mm",
-        "Zonuren (h)": "SQ_h"
-    }
-
-    if keuze:
-        kolommen = [mapping[k] for k in keuze]
-        fig = px.line(
-            df, x="date", y=kolommen,
-            labels={"value": "Waarde", "date": "Datum", "variable": "Maatstaf"},
-            title="Dagelijkse weerdata"
-        )
-
-        # Mooie namen in de legenda
-        fig.for_each_trace(lambda t: t.update(
-            name=t.name.replace("TG_C", "Gemiddelde temperatuur (°C)")
-                         .replace("RH_mm", "Neerslag (mm)")
-                         .replace("SQ_h", "Zonuren (h)")
-        ))
-
+    if "TG_C" in df.columns:
+        fig = px.line(df, x="date", y="TG_C", title="Dagelijkse gemiddelde temperatuur (°C)")
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Selecteer minstens één grootheid om te plotten.")
 
 elif page == "🌧️ Neerslag vs Zon":
     st.header("☔ Neerslag vs ☀️ Zonuren")
@@ -98,13 +67,9 @@ elif page == "🌧️ Neerslag vs Zon":
         fig = px.scatter(
             df, x="RH_mm", y="SQ_h", color="month",
             labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"},
-            title="Relatie tussen neerslag en zonuren",
-            hover_data=["date"]
+            title="Relatie tussen neerslag en zonuren"
         )
-        fig.update_traces(marker=dict(size=6, opacity=0.7))
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Deze dataset bevat geen neerslag- en zonurenkolommen.")
 
 elif page == "🌡️ Kalender-heatmap":
     st.header("🌡️ Kalender-heatmap temperatuur")
@@ -135,11 +100,6 @@ elif page == "🌡️ Kalender-heatmap":
             title="Kalender-heatmap: Gemiddelde temperatuur per dag",
             xaxis_title="Dag van de maand",
             yaxis_title="Maand"
-        )
-
-        # Hover: toon exacte waarde
-        fig.update_traces(
-            hovertemplate="Dag %{x} %{y}<br>Gem. temp: %{z:.1f} °C<extra></extra>"
         )
 
         st.plotly_chart(fig, use_container_width=True)
