@@ -3,11 +3,8 @@
 import json
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
-
-sns.set_theme(style="whitegrid")
+import plotly.express as px
 
 # === Data inlezen ===
 @st.cache_data
@@ -86,7 +83,7 @@ if page == "Intro":
         st.dataframe(df_preview.head())
 
 else:
-    # Dataset ophalen uit session_state (gekozen op Intro)
+    # Dataset ophalen uit session_state
     if "dataset_choice" not in st.session_state:
         st.warning("⚠️ Ga eerst naar de Intro pagina en kies een dataset.")
         st.stop()
@@ -103,36 +100,26 @@ else:
         else:
             temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
 
-            fig, ax = plt.subplots(figsize=(14, 5))
-            sns.lineplot(data=temp, x="date", y="temp_C", hue="type", alpha=0.3, ax=ax)
-
-            for name, sub in temp.groupby("type"):
-                sub = sub.sort_values("date").copy()
-                sub["roll"] = sub["temp_C"].rolling(7, min_periods=3).mean()
-                sns.lineplot(data=sub, x="date", y="roll", label=f"{name} (7d)", ax=ax)
-
-            ax.set_title("Dagelijkse temperatuur (met 7-daagse gemiddelden)")
-            ax.set_xlabel("Datum")
-            ax.set_ylabel("Temperatuur (°C)")
-            st.pyplot(fig)
+            # Interactieve lijnplot
+            fig = px.line(temp, x="date", y="temp_C", color="type",
+                          title="Dagelijkse temperatuur per type",
+                          labels={"temp_C":"Temperatuur (°C)", "date":"Datum"})
+            st.plotly_chart(fig, use_container_width=True)
 
             # Boxplot per seizoen
-            fig2, ax2 = plt.subplots(figsize=(8, 5))
-            sns.boxplot(data=df, x="season", y="TG_C", ax=ax2)
-            ax2.set_title("Verdeling daggemiddelde temperatuur per seizoen")
-            st.pyplot(fig2)
+            fig2 = px.box(df, x="season", y="TG_C", points="all",
+                          title="Verdeling daggemiddelde temperatuur per seizoen",
+                          labels={"TG_C":"Temperatuur (°C)", "season":"Seizoen"})
+            st.plotly_chart(fig2, use_container_width=True)
 
     # === Pagina Neerslag & Zon ===
     elif page == "Neerslag & Zon":
         st.title("☔ Neerslag en Zonuren")
-
         if "RH_mm" in df.columns and "SQ_h" in df.columns:
-            fig, ax = plt.subplots(figsize=(8, 5))
-            sns.scatterplot(data=df, x="RH_mm", y="SQ_h", hue="season", ax=ax)
-            ax.set_xlabel("Neerslag (mm)")
-            ax.set_ylabel("Zonuren")
-            ax.set_title("Relatie tussen neerslag en zonuren")
-            st.pyplot(fig)
+            fig = px.scatter(df, x="RH_mm", y="SQ_h", color="season",
+                             title="Relatie tussen neerslag en zonuren",
+                             labels={"RH_mm":"Neerslag (mm)", "SQ_h":"Zonuren"})
+            st.plotly_chart(fig, use_container_width=True)
         else:
             st.warning("Geen neerslag- of zonurenkolommen beschikbaar")
 
@@ -146,8 +133,8 @@ else:
             "SQ_h": "sum"
         }).reset_index()
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        yearly.plot(x="year", y=["TG_C", "RH_mm", "SQ_h"], kind="bar", ax=ax)
-        ax.set_title("Gemiddelde temperatuur en totale neerslag/zon per jaar")
-        ax.set_ylabel("Waarde")
-        st.pyplot(fig)
+        fig = px.bar(yearly, x="year", y=["TG_C","RH_mm","SQ_h"],
+                     title="Gemiddelde temperatuur en totale neerslag/zon per jaar",
+                     labels={"value":"Waarde", "year":"Jaar", "variable":"Maatstaf"},
+                     barmode="group")
+        st.plotly_chart(fig, use_container_width=True)
