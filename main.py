@@ -64,6 +64,42 @@ if avg_temp: kpi1.metric("Gemiddelde Temp (°C)", avg_temp)
 if total_rain: kpi2.metric("Totale Neerslag (mm)", total_rain)
 if total_sun: kpi3.metric("Totale Zonuren", total_sun)
 
+elif page == "Neerslag & Zon":
+    st.header("☔ Neerslag vs. Zon")
+
+    if "RH_mm" in df.columns and "SQ_h" in df.columns:
+        # === 1. Boxplot: zonuren verdeeld per neerslagcategorie ===
+        st.subheader("📦 Verdeling zonuren per neerslagcategorie")
+
+        bins = [0, 1, 5, 10, 50]
+        labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
+        df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
+
+        fig_box = px.box(
+            df, x="rain_cat", y="SQ_h",
+            color="rain_cat",
+            title="Verdeling zonuren per neerslagcategorie",
+            labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
+            points="all"  # toont ook de punten voor extra detail
+        )
+        fig_box.update_traces(marker=dict(opacity=0.5, size=4))
+        st.plotly_chart(fig_box, use_container_width=True)
+
+        # === 2. Linechart: gemiddelde zonuren bij oplopende regen ===
+        st.subheader("📈 Gemiddelde zonuren bij toenemende neerslag")
+
+        rain_bins = pd.cut(df["RH_mm"], bins=20)  # 20 klassen
+        avg_sun = df.groupby(rain_bins)["SQ_h"].mean().reset_index()
+        avg_sun["RH_mm"] = avg_sun["RH_mm"].astype(str)
+
+        fig_line = px.line(
+            avg_sun, x="RH_mm", y="SQ_h",
+            markers=True,
+            title="Relatie: Neerslag (mm) vs. Gem. zonuren",
+            labels={"SQ_h": "Gemiddelde zonuren", "RH_mm": "Neerslag (binned)"}
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
+
 # === Pagina's ===
 if page == "Overzicht":
     st.header("🌍 Jaarlijkse Overzicht")
@@ -95,14 +131,6 @@ elif page == "Temperatuur Trends":
                       title="Dagelijkse temperatuur (min, gem, max)")
         st.plotly_chart(fig, use_container_width=True)
 
-elif page == "Neerslag & Zon":
-    st.header("☔ Neerslag vs. Zon")
-    if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        fig = px.scatter(df, x="RH_mm", y="SQ_h", color="season",
-                         size="SQ_h",
-                         title="Relatie tussen Neerslag en Zonuren",
-                         labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"})
-        st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
