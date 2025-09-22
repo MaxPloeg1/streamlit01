@@ -5,7 +5,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
 sns.set_theme(style="whitegrid", context="talk")
 
 # === Data inlezen (robust voor list-of-records of {"data": [...]}) ===
@@ -30,25 +29,25 @@ def make_scaled(src, dest, divisor=10):
 
 # === Veelgebruikte grootheden (als aanwezig) ===
 # Temperatuur (°C)
-make_scaled("TG", "TG_C")   # daggem. temp
-make_scaled("TN", "TN_C")   # dag-min
-make_scaled("TX", "TX_C")   # dag-max
+make_scaled("TG", "TG_C")      # daggem. temp
+make_scaled("TN", "TN_C")      # dag-min
+make_scaled("TX", "TX_C")      # dag-max
 make_scaled("T10N", "T10N_C")  # 10cm-min (optioneel)
 
 # Wind (m/s)
-make_scaled("FG", "FG_ms")    # gem. windsnelheid
-make_scaled("FXX", "FXX_ms")  # hoogste windstoot
+make_scaled("FG", "FG_ms")     # gem. windsnelheid
+make_scaled("FXX", "FXX_ms")   # hoogste windstoot
 
 # Windrichting (graden) zit meestal in DDVEC (al in graden)
 if "DDVEC" in df.columns:
     df["DDVEC"] = pd.to_numeric(df["DDVEC"], errors="coerce")
 
 # Neerslag (mm) & verdamping (mm)
-make_scaled("RH", "RH_mm")     # neerslagsom
-make_scaled("EV24", "EV24_mm") # verdamping
+make_scaled("RH", "RH_mm")      # neerslagsom
+make_scaled("EV24", "EV24_mm")  # verdamping
 
 # Zonduur (uren) — KNMI 'SQ' is in tienden van uren
-make_scaled("SQ", "SQ_h")      
+make_scaled("SQ", "SQ_h")
 
 # Luchtdruk (hPa)
 make_scaled("PG", "PG_hPa")  # daggemiddelde druk
@@ -59,7 +58,7 @@ make_scaled("PN", "PN_hPa")  # dag-minimum
 df["year"] = df["date"].dt.year
 df["month"] = df["date"].dt.month
 df["day"] = df["date"].dt.day
-df["week"] = df["date"].dt.isocalendar().week.astype(int)
+df["week"] = df["date"].dt.isocalendar().week   # ✅ fix: geen .astype(int) nodig
 df["weekday"] = df["date"].dt.weekday  # 0=maandag
 
 # Seizoen (NL)
@@ -70,21 +69,24 @@ def season(m):
         "zomer"  if m in [6, 7, 8] else
         "herfst"
     )
+
 df["season"] = df["month"].apply(season)
 
 # Voor een snelle check: print de eerste 5 rijen
 if __name__ == "__main__":
     print(df.head())
 
-
+# === Visualisatie ===
 use_cols = [c for c in ["TN_C","TG_C","TX_C"] if c in df.columns]
-assert use_cols, "Geen temperatuurkolommen gevonden (TN/TG/TX)."
+if not use_cols:
+    raise ValueError("Geen temperatuurkolommen gevonden (TN/TG/TX).")
 
 # Long-form voor seaborn
 temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
 
-plt.figure(figsize=(14,5))
+plt.figure(figsize=(14, 5))
 ax = sns.lineplot(data=temp, x="date", y="temp_C", hue="type", alpha=0.25)
+
 # 7-daagse rolling mean voor rustiger beeld
 for name, sub in temp.groupby("type"):
     sub = sub.sort_values("date").copy()
