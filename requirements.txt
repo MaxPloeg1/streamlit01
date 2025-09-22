@@ -4,4 +4,6 @@ matplotlib
 seaborn
 streamlit
 plotly
-
+plotly.express
+locale
+calendar
