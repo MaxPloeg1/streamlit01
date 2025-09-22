@@ -1,100 +1,103 @@
-# === Imports & theme ===
+# streamlit_app.py
+
+# === Imports ===
 import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import streamlit as st
 
 sns.set_theme(style="whitegrid", context="talk")
 
-# === Data inlezen (robust voor list-of-records of {"data": [...]}) ===
-PATH = "amsterdam_2023_2024.json"
-with open(PATH, "r", encoding="utf-8") as f:
-    raw = json.load(f)
+# === Data inlezen ===
+@st.cache_data
+def load_data(path="amsterdam_2023_2024.json"):
+    with open(path, "r", encoding="utf-8") as f:
+        raw = json.load(f)
+    records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
+    df = pd.json_normalize(records)
 
-records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
-df = pd.json_normalize(records)
+    # Datum parsen
+    try:
+        df["date"] = pd.to_datetime(df["date"])
+    except Exception:
+        df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d")
 
-# === Datum parsen ===
-# Probeer automatisch, anders val terug op KNMI-formaat (YYYYMMDD)
-try:
-    df["date"] = pd.to_datetime(df["date"])
-except Exception:
-    df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d")
+    # Hulpfunctie voor schalen
+    def make_scaled(src, dest, divisor=10):
+        if src in df.columns:
+            df[dest] = pd.to_numeric(df[src], errors="coerce") / divisor
 
-# === Hulpfunctie: maak kolom als die bestaat, gedeeld door 10 (KNMI tienden) ===
-def make_scaled(src, dest, divisor=10):
-    if src in df.columns:
-        df[dest] = pd.to_numeric(df[src], errors="coerce") / divisor
+    # Temperatuur (°C)
+    make_scaled("TG", "TG_C")
+    make_scaled("TN", "TN_C")
+    make_scaled("TX", "TX_C")
+    make_scaled("T10N", "T10N_C")
 
-# === Veelgebruikte grootheden (als aanwezig) ===
-# Temperatuur (°C)
-make_scaled("TG", "TG_C")      # daggem. temp
-make_scaled("TN", "TN_C")      # dag-min
-make_scaled("TX", "TX_C")      # dag-max
-make_scaled("T10N", "T10N_C")  # 10cm-min (optioneel)
+    # Wind (m/s)
+    make_scaled("FG", "FG_ms")
+    make_scaled("FXX", "FXX_ms")
 
-# Wind (m/s)
-make_scaled("FG", "FG_ms")     # gem. windsnelheid
-make_scaled("FXX", "FXX_ms")   # hoogste windstoot
+    # Windrichting
+    if "DDVEC" in df.columns:
+        df["DDVEC"] = pd.to_numeric(df["DDVEC"], errors="coerce")
 
-# Windrichting (graden) zit meestal in DDVEC (al in graden)
-if "DDVEC" in df.columns:
-    df["DDVEC"] = pd.to_numeric(df["DDVEC"], errors="coerce")
+    # Neerslag & verdamping
+    make_scaled("RH", "RH_mm")
+    make_scaled("EV24", "EV24_mm")
 
-# Neerslag (mm) & verdamping (mm)
-make_scaled("RH", "RH_mm")      # neerslagsom
-make_scaled("EV24", "EV24_mm")  # verdamping
+    # Zonduur (uren)
+    make_scaled("SQ", "SQ_h")
 
-# Zonduur (uren) — KNMI 'SQ' is in tienden van uren
-make_scaled("SQ", "SQ_h")
+    # Luchtdruk
+    make_scaled("PG", "PG_hPa")
+    make_scaled("PX", "PX_hPa")
+    make_scaled("PN", "PN_hPa")
 
-# Luchtdruk (hPa)
-make_scaled("PG", "PG_hPa")  # daggemiddelde druk
-make_scaled("PX", "PX_hPa")  # dag-maximum
-make_scaled("PN", "PN_hPa")  # dag-minimum
+    # Tijdsfeatures
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
+    df["day"] = df["date"].dt.day
+    df["week"] = df["date"].dt.isocalendar().week
+    df["weekday"] = df["date"].dt.weekday
 
-# === Tijdsfeatures ===
-df["year"] = df["date"].dt.year
-df["month"] = df["date"].dt.month
-df["day"] = df["date"].dt.day
-df["week"] = df["date"].dt.isocalendar().week   # ✅ fix: geen .astype(int) nodig
-df["weekday"] = df["date"].dt.weekday  # 0=maandag
+    def season(m):
+        return (
+            "winter" if m in [12, 1, 2] else
+            "lente"  if m in [3, 4, 5] else
+            "zomer"  if m in [6, 7, 8] else
+            "herfst"
+        )
 
-# Seizoen (NL)
-def season(m):
-    return (
-        "winter" if m in [12, 1, 2] else
-        "lente"  if m in [3, 4, 5] else
-        "zomer"  if m in [6, 7, 8] else
-        "herfst"
-    )
+    df["season"] = df["month"].apply(season)
+    return df
 
-df["season"] = df["month"].apply(season)
+# === Streamlit layout ===
+st.title("🌤️ Amsterdam weerdata 2023–2024")
 
-# Voor een snelle check: print de eerste 5 rijen
-if __name__ == "__main__":
-    print(df.head())
+df = load_data()
 
-# === Visualisatie ===
-use_cols = [c for c in ["TN_C","TG_C","TX_C"] if c in df.columns]
+st.subheader("Voorbeeld van de data")
+st.dataframe(df.head())
+
+# === Visualisatie temperatuur ===
+use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
 if not use_cols:
-    raise ValueError("Geen temperatuurkolommen gevonden (TN/TG/TX).")
+    st.error("Geen temperatuurkolommen gevonden (TN/TG/TX).")
+else:
+    temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
 
-# Long-form voor seaborn
-temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
+    fig, ax = plt.subplots(figsize=(14, 5))
+    sns.lineplot(data=temp, x="date", y="temp_C", hue="type", alpha=0.25, ax=ax)
 
-plt.figure(figsize=(14, 5))
-ax = sns.lineplot(data=temp, x="date", y="temp_C", hue="type", alpha=0.25)
+    # 7-daagse rolling mean
+    for name, sub in temp.groupby("type"):
+        sub = sub.sort_values("date").copy()
+        sub["roll"] = sub["temp_C"].rolling(7, min_periods=3).mean()
+        sns.lineplot(data=sub, x="date", y="roll", label=f"{name} (7d)", ax=ax)
 
-# 7-daagse rolling mean voor rustiger beeld
-for name, sub in temp.groupby("type"):
-    sub = sub.sort_values("date").copy()
-    sub["roll"] = sub["temp_C"].rolling(7, min_periods=3).mean()
-    sns.lineplot(data=sub, x="date", y="roll", label=f"{name} (7d)", ax=ax)
-
-ax.set_title("Dagelijkse temperatuur (met 7-daagse gemiddelden)")
-ax.set_xlabel("Datum")
-ax.set_ylabel("Temperatuur (°C)")
-plt.tight_layout()
-plt.show()
+    ax.set_title("Dagelijkse temperatuur (met 7-daagse gemiddelden)")
+    ax.set_xlabel("Datum")
+    ax.set_ylabel("Temperatuur (°C)")
+    st.pyplot(fig)
