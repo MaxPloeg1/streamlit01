@@ -97,11 +97,25 @@ elif page == "Temperatuur Trends":
 
 elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
+
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        fig = px.scatter(df, x="RH_mm", y="SQ_h", color="season",
-                         size="SQ_h",
-                         title="Relatie tussen Neerslag en Zonuren",
-                         labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"})
+        fig = px.scatter(
+            df, x="RH_mm", y="SQ_h",
+            color="season",
+            size="SQ_h", size_max=12,  # maak de bubbles kleiner
+            opacity=0.7,
+            title="Relatie tussen Neerslag en Zonuren",
+            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"},
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+
+        fig.update_traces(marker=dict(line=dict(width=0.5, color="DarkSlateGrey")))
+        fig.update_layout(
+            xaxis=dict(title="Neerslag (mm)", gridcolor="lightgrey"),
+            yaxis=dict(title="Zonuren", gridcolor="lightgrey"),
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
