@@ -99,24 +99,34 @@ elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
 
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        fig = px.scatter(
+        # === 1. Binned bar chart ===
+        st.subheader("📊 Gemiddelde zonuren per neerslagcategorie")
+
+        bins = [0, 1, 5, 10, 50]
+        labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
+        df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
+
+        avg_sun = df.groupby("rain_cat")["SQ_h"].mean().reset_index()
+
+        fig_bar = px.bar(
+            avg_sun, x="rain_cat", y="SQ_h", text_auto=".1f",
+            title="Gemiddelde zonuren per neerslagcategorie",
+            labels={"SQ_h": "Gem. zonuren", "rain_cat": "Neerslagcategorie"}
+        )
+        fig_bar.update_traces(marker_color="orange", textposition="outside")
+        st.plotly_chart(fig_bar, use_container_width=True)
+
+        # === 2. Heatmap ===
+        st.subheader("🔥 Verdichting neerslag vs. zonuren")
+
+        fig_heat = px.density_heatmap(
             df, x="RH_mm", y="SQ_h",
-            color="season",
-            size="SQ_h", size_max=12,  # maak de bubbles kleiner
-            opacity=0.7,
-            title="Relatie tussen Neerslag en Zonuren",
-            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"},
-            color_discrete_sequence=px.colors.qualitative.Set2
+            nbinsx=30, nbinsy=20,
+            color_continuous_scale="YlOrBr",
+            title="Verdeling: Neerslag vs. Zonuren",
+            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"}
         )
-
-        fig.update_traces(marker=dict(line=dict(width=0.5, color="DarkSlateGrey")))
-        fig.update_layout(
-            xaxis=dict(title="Neerslag (mm)", gridcolor="lightgrey"),
-            yaxis=dict(title="Zonuren", gridcolor="lightgrey"),
-            plot_bgcolor="rgba(0,0,0,0)"
-        )
-
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig_heat, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
