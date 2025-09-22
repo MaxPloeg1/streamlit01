@@ -99,34 +99,37 @@ elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
 
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        # === 1. Binned bar chart ===
-        st.subheader("📊 Gemiddelde zonuren per neerslagcategorie")
+        # === 1. Boxplot: zonuren verdeeld per neerslagcategorie ===
+        st.subheader("📦 Verdeling zonuren per neerslagcategorie")
 
         bins = [0, 1, 5, 10, 50]
         labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
 
-        avg_sun = df.groupby("rain_cat")["SQ_h"].mean().reset_index()
-
-        fig_bar = px.bar(
-            avg_sun, x="rain_cat", y="SQ_h", text_auto=".1f",
-            title="Gemiddelde zonuren per neerslagcategorie",
-            labels={"SQ_h": "Gem. zonuren", "rain_cat": "Neerslagcategorie"}
+        fig_box = px.box(
+            df, x="rain_cat", y="SQ_h",
+            color="rain_cat",
+            title="Verdeling zonuren per neerslagcategorie",
+            labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
+            points="all"  # toont ook de punten voor extra detail
         )
-        fig_bar.update_traces(marker_color="orange", textposition="outside")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        fig_box.update_traces(marker=dict(opacity=0.5, size=4))
+        st.plotly_chart(fig_box, use_container_width=True)
 
-        # === 2. Heatmap ===
-        st.subheader("🔥 Verdichting neerslag vs. zonuren")
+        # === 2. Linechart: gemiddelde zonuren bij oplopende regen ===
+        st.subheader("📈 Gemiddelde zonuren bij toenemende neerslag")
 
-        fig_heat = px.density_heatmap(
-            df, x="RH_mm", y="SQ_h",
-            nbinsx=30, nbinsy=20,
-            color_continuous_scale="YlOrBr",
-            title="Verdeling: Neerslag vs. Zonuren",
-            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"}
+        rain_bins = pd.cut(df["RH_mm"], bins=20)  # 20 klassen
+        avg_sun = df.groupby(rain_bins)["SQ_h"].mean().reset_index()
+        avg_sun["RH_mm"] = avg_sun["RH_mm"].astype(str)
+
+        fig_line = px.line(
+            avg_sun, x="RH_mm", y="SQ_h",
+            markers=True,
+            title="Relatie: Neerslag (mm) vs. Gem. zonuren",
+            labels={"SQ_h": "Gemiddelde zonuren", "RH_mm": "Neerslag (binned)"}
         )
-        st.plotly_chart(fig_heat, use_container_width=True)
+        st.plotly_chart(fig_line, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
