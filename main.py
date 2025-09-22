@@ -2,54 +2,18 @@
 
 import json
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import streamlit as st
 import plotly.express as px
 
-sns.set_theme(style="whitegrid")
-
-if page == "🏠 Intro":
-    st.title("📊 Amsterdam Weerdata Dashboard")
-    st.markdown(
-        """
-        Welkom bij het interactieve weerdashboard voor Amsterdam.  
-        Hier kun je gegevens bekijken zoals temperatuur, neerslag en zonuren.  
-
-        **Stap 1:** Kies een dataset (jaargang).  
-        """
-    )
-
-    datasets = {
-        "2021–2022": "amsterdam_2021_2022.json",
-        "2022–2023": "amsterdam_2022_2023.json",
-        "2023–2024": "amsterdam_2023_2024.json",
-    }
-
-    choice = st.selectbox("📅 Kies een periode:", list(datasets.keys()))
-
-    if choice:
-        path = datasets[choice]
-        st.success(f"Je hebt gekozen voor dataset: **{choice}**")
-
-        import json, pandas as pd
-        with open(path, "r", encoding="utf-8") as f:
-            raw = json.load(f)
-        records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
-        df_preview = pd.json_normalize(records)
-
-        st.subheader(f"Voorbeeld data ({choice})")
-        st.dataframe(df_preview.head())
-
 # === Data inlezen ===
 @st.cache_data
-def load_data(path="amsterdam_2023_2024.json"):
+def load_data(path: str):
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
     records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
     df = pd.json_normalize(records)
 
+    # Datum parsing
     try:
         df["date"] = pd.to_datetime(df["date"])
     except Exception:
@@ -63,70 +27,115 @@ def load_data(path="amsterdam_2023_2024.json"):
     make_scaled("TN", "TN_C")
     make_scaled("TX", "TX_C")
     make_scaled("RH", "RH_mm")
-    make_scaled("EV24", "EV24_mm")
     make_scaled("SQ", "SQ_h")
 
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["week"] = df["date"].dt.isocalendar().week
-    df["weekday"] = df["date"].dt.weekday
 
     def season(m):
-        return "winter" if m in [12,1,2] else "lente" if m in [3,4,5] else "zomer" if m in [6,7,8] else "herfst"
+        return "winter" if m in [12, 1, 2] else "lente" if m in [3, 4, 5] else "zomer" if m in [6, 7, 8] else "herfst"
     df["season"] = df["month"].apply(season)
     return df
 
-df = load_data()
-
-# === Sidebar navigatie ===
+# === Sidebar ===
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Select a page", ["🌡️ Temperatuur Trends", "☔ Neerslag & Zon", "📊 Vergelijkingen"])
 
-# === Pagina 1: Temperatuur Trends ===
-if page == "🌡️ Temperatuur Trends":
-    st.title("🌡️ Dagelijkse Temperaturen in Amsterdam")
-    use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
+datasets = {
+    "2021–2022": "amsterdam_2021_2022.json",
+    "2022–2023": "amsterdam_2022_2023.json",
+    "2023–2024": "amsterdam_2023_2024.json",
+}
+dataset_choice = st.sidebar.selectbox("📅 Kies een dataset:", list(datasets.keys()))
+df = load_data(datasets[dataset_choice])
 
-    if not use_cols:
-        st.error("Geen temperatuurkolommen gevonden")
-    else:
-        temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
+page = st.sidebar.radio(
+    "Select a page",
+    ["Overzicht", "Temperatuur Trends", "Neerslag & Zon", "Verdeling & Topdagen"]
+)
 
-        # Plotly interactieve lijnplot
-        fig = px.line(temp, x="date", y="temp_C", color="type",
-                      title="Dagelijkse temperatuur per type",
-                      labels={"temp_C":"Temperatuur (°C)", "date":"Datum"})
-        st.plotly_chart(fig, use_container_width=True)
+# === KPI-tegels ===
+avg_temp = df["TG_C"].mean().round(1) if "TG_C" in df else None
+total_rain = df["RH_mm"].sum().round(1) if "RH_mm" in df else None
+total_sun = df["SQ_h"].sum().round(1) if "SQ_h" in df else None
 
-        # Boxplot verdeling per seizoen
-        fig2 = px.box(df, x="season", y="TG_C", points="all",
-                      title="Verdeling van daggemiddelde temperatuur per seizoen",
-                      labels={"TG_C":"Temperatuur (°C)", "season":"Seizoen"})
-        st.plotly_chart(fig2, use_container_width=True)
+kpi1, kpi2, kpi3 = st.columns(3)
+if avg_temp: kpi1.metric("Gemiddelde Temp (°C)", avg_temp)
+if total_rain: kpi2.metric("Totale Neerslag (mm)", total_rain)
+if total_sun: kpi3.metric("Totale Zonuren", total_sun)
 
-# === Pagina 2: Neerslag & Zon ===
-elif page == "☔ Neerslag & Zon":
-    st.title("☔ Neerslag en Zonuren")
-    if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        fig = px.scatter(df, x="RH_mm", y="SQ_h", color="season",
-                         title="Relatie tussen Neerslag en Zonuren",
-                         labels={"RH_mm":"Neerslag (mm)", "SQ_h":"Zonuren"})
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("Geen neerslag- of zonurenkolommen beschikbaar")
-
-# === Pagina 3: Vergelijkingen ===
-elif page == "📊 Vergelijkingen":
-    st.title("📊 Jaarlijkse Vergelijkingen")
+# === Pagina's ===
+if page == "Overzicht":
+    st.header("🌍 Jaarlijkse Overzicht")
 
     yearly = df.groupby("year").agg({
-        "TG_C":"mean",
-        "RH_mm":"sum",
-        "SQ_h":"sum"
+        "TG_C": "mean",
+        "RH_mm": "sum",
+        "SQ_h": "sum"
     }).reset_index()
 
-    fig = px.bar(yearly, x="year", y=["TG_C","RH_mm","SQ_h"],
-                 title="Gemiddelde temperatuur en totale neerslag/zon per jaar",
-                 labels={"value":"Waarde", "year":"Jaar", "variable":"Maatstaf"},
-                 barmode="group")
+    # Complexere staafdiagrammen
+    fig = px.bar(
+        yearly.melt(id_vars="year", var_name="Maatstaf", value_name="Waarde"),
+        x="year", y="Waarde", color="Maatstaf", barmode="group",
+        text_auto=".2s",
+        title="Vergelijking per jaar (temperatuur, neerslag, zonuren)"
+    )
+    fig.update_traces(textposition="outside")
+    fig.update_layout(yaxis_title="Waarde", xaxis_title="Jaar")
     st.plotly_chart(fig, use_container_width=True)
+
+elif page == "Temperatuur Trends":
+    st.header("🌡️ Temperatuur Trends")
+    use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
+
+    if use_cols:
+        temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
+        fig = px.line(temp, x="date", y="temp_C", color="type",
+                      title="Dagelijkse temperatuur (min, gem, max)")
+        st.plotly_chart(fig, use_container_width=True)
+
+elif page == "Neerslag & Zon":
+    st.header("☔ Neerslag vs. Zon")
+
+    if "RH_mm" in df.columns and "SQ_h" in df.columns:
+        fig = px.scatter(
+            df, x="RH_mm", y="SQ_h",
+            color="season",
+            size="SQ_h", size_max=12,  # maak de bubbles kleiner
+            opacity=0.7,
+            title="Relatie tussen Neerslag en Zonuren",
+            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"},
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+
+        fig.update_traces(marker=dict(line=dict(width=0.5, color="DarkSlateGrey")))
+        fig.update_layout(
+            xaxis=dict(title="Neerslag (mm)", gridcolor="lightgrey"),
+            yaxis=dict(title="Zonuren", gridcolor="lightgrey"),
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+
+        st.plotly_chart(fig, use_container_width=True)
+
+elif page == "Verdeling & Topdagen":
+    st.header("📊 Verdeling & Topdagen")
+
+    if "TG_C" in df:
+        fig1 = px.box(df, x="season", y="TG_C", points="all",
+                      title="Verdeling temperatuur per seizoen")
+        st.plotly_chart(fig1, use_container_width=True)
+
+    if "RH_mm" in df:
+        top_rain = df.nlargest(10, "RH_mm")[["date", "RH_mm"]]
+        fig2 = px.bar(top_rain, x="date", y="RH_mm",
+                      title="Top 10 natste dagen", text_auto=".1f", color="RH_mm",
+                      color_continuous_scale="Blues")
+        st.plotly_chart(fig2, use_container_width=True)
+
+    if "SQ_h" in df:
+        top_sun = df.nlargest(10, "SQ_h")[["date", "SQ_h"]]
+        fig3 = px.bar(top_sun, x="date", y="SQ_h",
+                      title="Top 10 zonnigste dagen", text_auto=".1f", color="SQ_h",
+                      color_continuous_scale="Oranges")
+        st.plotly_chart(fig3, use_container_width=True)
