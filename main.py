@@ -1,154 +1,147 @@
-# streamlit_dashboard.py
-
-import json
-import pandas as pd
 import streamlit as st
+import pandas as pd
+import numpy as np
+import json
+import calendar
+import locale
 import plotly.express as px
 
-# === Data inlezen ===
-@st.cache_data
-def load_data(path: str):
-    with open(path, "r", encoding="utf-8") as f:
-        raw = json.load(f)
-    records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
-    df = pd.json_normalize(records)
-
-    # Datum parsing
-    try:
-        df["date"] = pd.to_datetime(df["date"])
-    except Exception:
-        df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d")
-
-    def make_scaled(src, dest, divisor=10):
-        if src in df.columns:
-            df[dest] = pd.to_numeric(df[src], errors="coerce") / divisor
-
-    make_scaled("TG", "TG_C")
-    make_scaled("TN", "TN_C")
-    make_scaled("TX", "TX_C")
-    make_scaled("RH", "RH_mm")
-    make_scaled("SQ", "SQ_h")
-
-    df["year"] = df["date"].dt.year
-    df["month"] = df["date"].dt.month
-    df["week"] = df["date"].dt.isocalendar().week
-
-    def season(m):
-        return "winter" if m in [12, 1, 2] else "lente" if m in [3, 4, 5] else "zomer" if m in [6, 7, 8] else "herfst"
-    df["season"] = df["month"].apply(season)
-    return df
-
-# === Sidebar ===
-st.sidebar.title("Navigation")
-
-datasets = {
+# === Dataset selectie ===
+dataset_map = {
     "2021–2022": "amsterdam_2021_2022.json",
     "2022–2023": "amsterdam_2022_2023.json",
-    "2023–2024": "amsterdam_2023_2024.json",
+    "2023–2024": "amsterdam_2023_2024.json"
 }
-dataset_choice = st.sidebar.selectbox("📅 Kies een dataset:", list(datasets.keys()))
-df = load_data(datasets[dataset_choice])
 
+st.sidebar.header("📂 Datasetkeuze")
+dataset_label = st.sidebar.selectbox("📅 Kies een dataset:", list(dataset_map.keys()))
+PATH = dataset_map[dataset_label]
+
+# === Data inlezen ===
+with open(PATH, "r", encoding="utf-8") as f:
+    raw = json.load(f)
+
+records = raw["data"] if isinstance(raw, dict) and "data" in raw else raw
+df = pd.json_normalize(records)
+
+# Datum goedzetten
+try:
+    df["date"] = pd.to_datetime(df["date"])
+except Exception:
+    df["date"] = pd.to_datetime(df["date"].astype(str), format="%Y%m%d")
+
+# Schalen naar normale waarden
+def make_scaled(src, dest, divisor=10):
+    if src in df.columns:
+        df[dest] = pd.to_numeric(df[src], errors="coerce") / divisor
+
+make_scaled("TG", "TG_C")   # Gemiddelde temperatuur
+make_scaled("RH", "RH_mm")  # Neerslag
+make_scaled("SQ", "SQ_h")   # Zonuren
+
+# Extra tijd-features
+df["year"] = df["date"].dt.year
+df["month"] = df["date"].dt.month
+df["day"] = df["date"].dt.day
+
+# === Sidebar navigatie ===
 page = st.sidebar.radio(
-    "Select a page",
-    ["Overzicht", "Temperatuur Trends", "Neerslag & Zon", "Verdeling & Topdagen"]
+    "Navigatie",
+    ["🏠 Intro", "📊 Analyses", "🌧️ Neerslag vs Zon", "🌡️ Kalender-heatmap"]
 )
 
-# === KPI-tegels ===
-avg_temp = df["TG_C"].mean().round(1) if "TG_C" in df else None
-total_rain = df["RH_mm"].sum().round(1) if "RH_mm" in df else None
-total_sun = df["SQ_h"].sum().round(1) if "SQ_h" in df else None
+# === Pagina’s ===
+if page == "🏠 Intro":
+    st.title("🌍 Weer Dashboard Amsterdam")
+    st.markdown(f"**Geselecteerde dataset:** {dataset_label}")
+    st.write("Gebruik de navigatie links om de analyses te bekijken.")
 
-kpi1, kpi2, kpi3 = st.columns(3)
-if avg_temp: kpi1.metric("Gemiddelde Temp (°C)", avg_temp)
-if total_rain: kpi2.metric("Totale Neerslag (mm)", total_rain)
-if total_sun: kpi3.metric("Totale Zonuren", total_sun)
+elif page == "📊 Analyses":
+    st.header("📊 Tijdreeksen")
 
-# === Pagina's ===
-if page == "Overzicht":
-    st.header("🌍 Jaarlijkse Overzicht")
+    # Selecteer welke maatstaven getoond worden
+    opties = []
+    if "TG_C" in df.columns: opties.append("Gemiddelde temperatuur (°C)")
+    if "RH_mm" in df.columns: opties.append("Neerslag (mm)")
+    if "SQ_h" in df.columns: opties.append("Zonuren (h)")
 
-    yearly = df.groupby("year").agg({
-        "TG_C": "mean",
-        "RH_mm": "sum",
-        "SQ_h": "sum"
-    }).reset_index()
+    keuze = st.multiselect("Kies grootheden:", opties, default=opties)
 
-    # Complexere staafdiagrammen
-    fig = px.bar(
-        yearly.melt(id_vars="year", var_name="Maatstaf", value_name="Waarde"),
-        x="year", y="Waarde", color="Maatstaf", barmode="group",
-        text_auto=".2s",
-        title="Vergelijking per jaar (temperatuur, neerslag, zonuren)"
-    )
-    fig.update_traces(textposition="outside")
-    fig.update_layout(yaxis_title="Waarde", xaxis_title="Jaar")
-    st.plotly_chart(fig, use_container_width=True)
+    mapping = {
+        "Gemiddelde temperatuur (°C)": "TG_C",
+        "Neerslag (mm)": "RH_mm",
+        "Zonuren (h)": "SQ_h"
+    }
 
-elif page == "Temperatuur Trends":
-    st.header("🌡️ Temperatuur Trends")
-    use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
+    if keuze:
+        kolommen = [mapping[k] for k in keuze]
+        fig = px.line(
+            df, x="date", y=kolommen,
+            labels={"value": "Waarde", "date": "Datum", "variable": "Maatstaf"},
+            title="Dagelijkse weerdata"
+        )
 
-    if use_cols:
-        temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
-        fig = px.line(temp, x="date", y="temp_C", color="type",
-                      title="Dagelijkse temperatuur (min, gem, max)")
+        # Mooie namen in de legenda
+        fig.for_each_trace(lambda t: t.update(
+            name=t.name.replace("TG_C", "Gemiddelde temperatuur (°C)")
+                         .replace("RH_mm", "Neerslag (mm)")
+                         .replace("SQ_h", "Zonuren (h)")
+        ))
+
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Selecteer minstens één grootheid om te plotten.")
 
-elif page == "Neerslag & Zon":
-    st.header("☔ Neerslag vs. Zon")
-
+elif page == "🌧️ Neerslag vs Zon":
+    st.header("☔ Neerslag vs ☀️ Zonuren")
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        # === 1. Boxplot: zonuren verdeeld per neerslagcategorie ===
-        st.subheader("📦 Verdeling zonuren per neerslagcategorie")
-
-        bins = [0, 1, 5, 10, 50]
-        labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
-        df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
-
-        fig_box = px.box(
-            df, x="rain_cat", y="SQ_h",
-            color="rain_cat",
-            title="Verdeling zonuren per neerslagcategorie",
-            labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
-            points="all"  # toont ook de punten voor extra detail
+        fig = px.scatter(
+            df, x="RH_mm", y="SQ_h", color="month",
+            labels={"RH_mm": "Neerslag (mm)", "SQ_h": "Zonuren"},
+            title="Relatie tussen neerslag en zonuren",
+            hover_data=["date"]
         )
-        fig_box.update_traces(marker=dict(opacity=0.5, size=4))
-        st.plotly_chart(fig_box, use_container_width=True)
+        fig.update_traces(marker=dict(size=6, opacity=0.7))
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Deze dataset bevat geen neerslag- en zonurenkolommen.")
 
-        # === 2. Linechart: gemiddelde zonuren bij oplopende regen ===
-        st.subheader("📈 Gemiddelde zonuren bij toenemende neerslag")
+elif page == "🌡️ Kalender-heatmap":
+    st.header("🌡️ Kalender-heatmap temperatuur")
 
-        rain_bins = pd.cut(df["RH_mm"], bins=20)  # 20 klassen
-        avg_sun = df.groupby(rain_bins)["SQ_h"].mean().reset_index()
-        avg_sun["RH_mm"] = avg_sun["RH_mm"].astype(str)
+    if "TG_C" in df.columns:
+        # Pivot: maand x dag
+        pivot = df.pivot_table(index="month", columns="day", values="TG_C", aggfunc="mean")
 
-        fig_line = px.line(
-            avg_sun, x="RH_mm", y="SQ_h",
-            markers=True,
-            title="Relatie: Neerslag (mm) vs. Gem. zonuren",
-            labels={"SQ_h": "Gemiddelde zonuren", "RH_mm": "Neerslag (binned)"}
+        # Nederlandse maandnamen
+        maanden = {
+            1: "januari", 2: "februari", 3: "maart", 4: "april",
+            5: "mei", 6: "juni", 7: "juli", 8: "augustus",
+            9: "september", 10: "oktober", 11: "november", 12: "december"
+        }
+        pivot.index = [maanden[m] for m in pivot.index]
+
+        # Heatmap
+        fig = px.imshow(
+            pivot,
+            labels=dict(x="Dag van de maand", y="Maand", color="Gemiddelde temperatuur (°C)"),
+            x=pivot.columns,
+            y=pivot.index,
+            color_continuous_scale="YlOrRd",
+            aspect="auto"
         )
-        st.plotly_chart(fig_line, use_container_width=True)
 
-elif page == "Verdeling & Topdagen":
-    st.header("📊 Verdeling & Topdagen")
+        fig.update_layout(
+            title="Kalender-heatmap: Gemiddelde temperatuur per dag",
+            xaxis_title="Dag van de maand",
+            yaxis_title="Maand"
+        )
 
-    if "TG_C" in df:
-        fig1 = px.box(df, x="season", y="TG_C", points="all",
-                      title="Verdeling temperatuur per seizoen")
-        st.plotly_chart(fig1, use_container_width=True)
+        # Hover: toon exacte waarde
+        fig.update_traces(
+            hovertemplate="Dag %{x} %{y}<br>Gem. temp: %{z:.1f} °C<extra></extra>"
+        )
 
-    if "RH_mm" in df:
-        top_rain = df.nlargest(10, "RH_mm")[["date", "RH_mm"]]
-        fig2 = px.bar(top_rain, x="date", y="RH_mm",
-                      title="Top 10 natste dagen", text_auto=".1f", color="RH_mm",
-                      color_continuous_scale="Blues")
-        st.plotly_chart(fig2, use_container_width=True)
-
-    if "SQ_h" in df:
-        top_sun = df.nlargest(10, "SQ_h")[["date", "SQ_h"]]
-        fig3 = px.bar(top_sun, x="date", y="SQ_h",
-                      title="Top 10 zonnigste dagen", text_auto=".1f", color="SQ_h",
-                      color_continuous_scale="Oranges")
-        st.plotly_chart(fig3, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Geen temperatuurdata (TG_C) beschikbaar in deze dataset.")
