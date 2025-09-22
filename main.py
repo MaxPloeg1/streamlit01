@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+
 sns.set_theme(style="whitegrid", context="talk")
 
 # === Data inlezen (robust voor list-of-records of {"data": [...]}) ===
@@ -74,3 +75,24 @@ df["season"] = df["month"].apply(season)
 # Voor een snelle check: print de eerste 5 rijen
 if __name__ == "__main__":
     print(df.head())
+
+
+use_cols = [c for c in ["TN_C","TG_C","TX_C"] if c in df.columns]
+assert use_cols, "Geen temperatuurkolommen gevonden (TN/TG/TX)."
+
+# Long-form voor seaborn
+temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
+
+plt.figure(figsize=(14,5))
+ax = sns.lineplot(data=temp, x="date", y="temp_C", hue="type", alpha=0.25)
+# 7-daagse rolling mean voor rustiger beeld
+for name, sub in temp.groupby("type"):
+    sub = sub.sort_values("date").copy()
+    sub["roll"] = sub["temp_C"].rolling(7, min_periods=3).mean()
+    sns.lineplot(data=sub, x="date", y="roll", label=f"{name} (7d)", ax=ax)
+
+ax.set_title("Dagelijkse temperatuur (met 7-daagse gemiddelden)")
+ax.set_xlabel("Datum")
+ax.set_ylabel("Temperatuur (°C)")
+plt.tight_layout()
+plt.show()
