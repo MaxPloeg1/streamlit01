@@ -4,6 +4,7 @@ matplotlib
 seaborn
 streamlit
 plotly
-
-
+windrose
+calendar
+locale
 
