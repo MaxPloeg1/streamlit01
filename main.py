@@ -178,20 +178,49 @@ elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
 
     if "TG_C" in df:
-        fig1 = px.box(df, x="season", y="TG_C", points="all",
-                      title="Verdeling temperatuur per seizoen")
+        fig1 = px.box(
+            df,
+            x="season",
+            y="TG_C",
+            points="all",
+            title="Verdeling temperatuur per seizoen",
+            labels={
+                "season": "Seizoen",
+                "TG_C": "Etmaalgemiddelde temperatuur (°C)"
+            }
+        )
         st.plotly_chart(fig1, use_container_width=True)
 
     if "RH_mm" in df:
         top_rain = df.nlargest(10, "RH_mm")[["date", "RH_mm"]]
-        fig2 = px.bar(top_rain, x="date", y="RH_mm",
-                      title="Top 10 natste dagen", text_auto=".1f", color="RH_mm",
-                      color_continuous_scale="Blues")
+        fig2 = px.bar(
+            top_rain,
+            x="date",
+            y="RH_mm",
+            title="Top 10 natste dagen",
+            text_auto=".1f",
+            color="RH_mm",
+            color_continuous_scale="Blues",
+            labels={
+                "date": "Datum",
+                "RH_mm": "Neerslagsom (mm)"
+            }
+        )
         st.plotly_chart(fig2, use_container_width=True)
 
     if "SQ_h" in df:
         top_sun = df.nlargest(10, "SQ_h")[["date", "SQ_h"]]
-        fig3 = px.bar(top_sun, x="date", y="SQ_h",
-                      title="Top 10 zonnigste dagen", text_auto=".1f", color="SQ_h",
-                      color_continuous_scale="Oranges")
+        fig3 = px.bar(
+            top_sun,
+            x="date",
+            y="SQ_h",
+            title="Top 10 zonnigste dagen",
+            text_auto=".1f",
+            color="SQ_h",
+            color_continuous_scale="Oranges",
+            labels={
+                "date": "Datum",
+                "SQ_h": "Zonneschijnduur (uren)"
+            }
+        )
         st.plotly_chart(fig3, use_container_width=True)
