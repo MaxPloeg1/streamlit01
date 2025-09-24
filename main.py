@@ -65,43 +65,37 @@ if avg_temp: kpi1.metric("🌡️ Gemiddelde Temp (°C)", avg_temp)
 if total_rain: kpi2.metric("🌧️ Totale Neerslag (mm)", total_rain)
 if total_sun: kpi3.metric("☀️ Totale Zonuren", total_sun)
 
-# === Pagina's ===
 if page == "Overzicht":
     st.header("🌍 Amsterdam: Het Weer in Verandering")
     st.subheader("Warmer – Droger – Zonniger (jaarvergelijking)")
 
+    # === Data voorbereiden ===
     yearly = df.groupby("year").agg({
         "TG_C": "mean",
         "RH_mm": "sum",
         "SQ_h": "sum"
     }).reset_index()
 
-    # Zonuren schalen zodat ze vergelijkbaar zijn
+    # Zonuren schalen zodat ze vergelijkbaar zijn met temperatuur
     scale_factor = 200
     yearly["SQ_scaled"] = yearly["SQ_h"] / scale_factor
 
-    # Plotly figuur met dubbele as
+    # === 1. Hoofdgrafiek: Jaarvergelijking ===
     fig = go.Figure()
-
-    # Temperatuur
     fig.add_trace(go.Bar(
         x=yearly["year"], y=yearly["TG_C"],
         name="Gem. Temp (°C)", marker_color="tomato"
     ))
-
-    # Zonuren (geschaald)
     fig.add_trace(go.Bar(
         x=yearly["year"], y=yearly["SQ_scaled"],
         name=f"Zonuren (x{scale_factor}h)", marker_color="gold"
     ))
-
-    # Neerslag als lijn
     fig.add_trace(go.Scatter(
         x=yearly["year"], y=yearly["RH_mm"],
-        name="Neerslag (mm)", mode="lines+markers", yaxis="y2", line=dict(color="royalblue")
+        name="Neerslag (mm)", mode="lines+markers",
+        yaxis="y2", line=dict(color="royalblue")
     ))
 
-    # Layout
     fig.update_layout(
         title="Vergelijking per jaar: Temperatuur, Neerslag en Zonuren",
         xaxis_title="Jaar",
@@ -120,8 +114,40 @@ if page == "Overzicht":
         diff_sun = yearly["SQ_h"].iloc[-1] - yearly["SQ_h"].iloc[-2]
         st.info(
             f"In {yearly['year'].iloc[-1]} was het gemiddeld {diff_temp:.1f}°C warmer, "
-            f"viel er {diff_rain:.0f} mm minder regen en scheen de zon {diff_sun:.0f} uur langer dan in {yearly['year'].iloc[-2]}."
+            f"viel er {diff_rain:.0f} mm minder regen en scheen de zon {diff_sun:.0f} uur langer "
+            f"dan in {yearly['year'].iloc[-2]}."
         )
+
+    # === 2. Lange termijn trend temperatuur ===
+    avg_yearly_temp = df.groupby("year")["TG_C"].mean().reset_index()
+    fig_trend = px.line(
+        avg_yearly_temp, x="year", y="TG_C", markers=True,
+        title="📈 Lange termijn trend: Gemiddelde jaartemperatuur in Amsterdam",
+        labels={"TG_C": "Gemiddelde Temp (°C)", "year": "Jaar"}
+    )
+    fig_trend.update_traces(line=dict(color="tomato", width=3))
+    st.plotly_chart(fig_trend, use_container_width=True)
+    st.caption("👉 Deze grafiek laat zien dat de gemiddelde jaartemperatuur structureel toeneemt, passend bij klimaatopwarming.")
+
+    # === 3. Seizoensgemiddelden ===
+    season_temp = df.groupby(["year", "season"])["TG_C"].mean().reset_index()
+    fig_season = px.bar(
+        season_temp, x="season", y="TG_C", color="year", barmode="group",
+        title="🌦️ Gemiddelde temperatuur per seizoen",
+        labels={"TG_C": "Gemiddelde Temp (°C)", "season": "Seizoen"}
+    )
+    st.plotly_chart(fig_season, use_container_width=True)
+    st.caption("👉 Vooral de zomers worden warmer – dit merk je direct in hittegolven en langere warme periodes.")
+
+    # === 4. Verdeling zonuren ===
+    fig_sun = px.histogram(
+        df, x="SQ_h", nbins=30,
+        title="☀️ Verdeling van zonuren per dag",
+        labels={"SQ_h": "Zonuren per dag", "count": "Aantal dagen"},
+        color_discrete_sequence=["gold"]
+    )
+    st.plotly_chart(fig_sun, use_container_width=True)
+    st.caption("👉 Er komen meer dagen met extreem veel zonuren, een teken dat zomers droger en zonniger worden.")
 
 elif page == "Temperatuur Trends":
     st.header("🌡️ Temperatuur Trends")
