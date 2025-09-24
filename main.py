@@ -188,17 +188,36 @@ elif page == "Neerslag & Zon":
         )
         st.plotly_chart(fig_box, use_container_width=True)
 
-        # 2. Gemiddelde zonuren bij toenemende regen
-        rain_bins = pd.cut(df["RH_mm"], bins=20)
-        avg_sun = df.groupby(rain_bins)["SQ_h"].mean().reset_index()
-        avg_sun["RH_mm"] = avg_sun["RH_mm"].astype(str)
-
-        fig_line = px.line(
-            avg_sun, x="RH_mm", y="SQ_h", markers=True,
-            title="📈 Gemiddelde zonuren bij toenemende neerslag",
-            labels={"SQ_h": "Gemiddelde zonuren", "RH_mm": "Neerslagklasse"}
+                # Neerslag in categorieën indelen
+        rain_bins = pd.cut(
+            df["RH_mm"], 
+            bins=[0, 1, 5, 10, 20, 50], 
+            include_lowest=True, 
+            labels=["0 mm", "0–1 mm", "1–5 mm", "5–10 mm", "10–20 mm", "20+ mm"]
         )
-        st.plotly_chart(fig_line, use_container_width=True)
+        avg_temp_rain = df.groupby(rain_bins)["TG_C"].mean().reset_index()
+
+        # Balkdiagram maken
+        fig_temp_rain = px.bar(
+            avg_temp_rain, x="RH_mm", y="TG_C",
+            title="🌧️ Gemiddelde temperatuur bij toenemende regenval",
+            labels={
+                "RH_mm": "Neerslagcategorie (mm per dag)", 
+                "TG_C": "Gemiddelde temperatuur (°C)"
+            },
+            text_auto=".1f",  # toon de temperatuurwaarden op de bars
+            color="TG_C", 
+            color_continuous_scale="RdYlBu_r"
+        )
+
+        # Layout verbeteren
+        fig_temp_rain.update_layout(
+            xaxis_title="Neerslagcategorie (mm per dag)",
+            yaxis_title="Gemiddelde temperatuur (°C)",
+            showlegend=False
+        )
+
+st.plotly_chart(fig_temp_rain, use_container_width=True)
 
 
 elif page == "Windrichting":
