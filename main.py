@@ -3,8 +3,8 @@
 import json
 import pandas as pd
 import streamlit as st
-import plotly.graph_objects as go
 import plotly.express as px
+import plotly.graph_objects as go
 
 # === Data inlezen ===
 @st.cache_data
@@ -113,12 +113,11 @@ if page == "Overzicht":
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Praktische conclusie onder de grafiek
+    # Praktische conclusie
     if len(yearly) >= 2:
         diff_temp = yearly["TG_C"].iloc[-1] - yearly["TG_C"].iloc[-2]
         diff_rain = yearly["RH_mm"].iloc[-2] - yearly["RH_mm"].iloc[-1]
         diff_sun = yearly["SQ_h"].iloc[-1] - yearly["SQ_h"].iloc[-2]
-
         st.info(
             f"In {yearly['year'].iloc[-1]} was het gemiddeld {diff_temp:.1f}°C warmer, "
             f"viel er {diff_rain:.0f} mm minder regen en scheen de zon {diff_sun:.0f} uur langer dan in {yearly['year'].iloc[-2]}."
@@ -136,8 +135,52 @@ elif page == "Temperatuur Trends":
 
 elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
-    # blijft gelijk...
+
+    if "RH_mm" in df.columns and "SQ_h" in df.columns:
+        # 1. Boxplot: zonuren per neerslagcategorie
+        bins = [0, 1, 5, 10, 50]
+        labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
+        df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
+
+        fig_box = px.box(
+            df, x="rain_cat", y="SQ_h",
+            color="rain_cat",
+            title="📦 Verdeling zonuren per neerslagcategorie",
+            labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
+            points="all"
+        )
+        st.plotly_chart(fig_box, use_container_width=True)
+
+        # 2. Gemiddelde zonuren bij toenemende regen
+        rain_bins = pd.cut(df["RH_mm"], bins=20)
+        avg_sun = df.groupby(rain_bins)["SQ_h"].mean().reset_index()
+        avg_sun["RH_mm"] = avg_sun["RH_mm"].astype(str)
+
+        fig_line = px.line(
+            avg_sun, x="RH_mm", y="SQ_h", markers=True,
+            title="📈 Gemiddelde zonuren bij toenemende neerslag",
+            labels={"SQ_h": "Gemiddelde zonuren", "RH_mm": "Neerslagklasse"}
+        )
+        st.plotly_chart(fig_line, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
-    # blijft gelijk...
+
+    if "TG_C" in df:
+        fig1 = px.box(df, x="season", y="TG_C", points="all",
+                      title="Verdeling temperatuur per seizoen")
+        st.plotly_chart(fig1, use_container_width=True)
+
+    if "RH_mm" in df:
+        top_rain = df.nlargest(10, "RH_mm")[["date", "RH_mm"]]
+        fig2 = px.bar(top_rain, x="date", y="RH_mm",
+                      title="Top 10 natste dagen", text_auto=".1f", color="RH_mm",
+                      color_continuous_scale="Blues")
+        st.plotly_chart(fig2, use_container_width=True)
+
+    if "SQ_h" in df:
+        top_sun = df.nlargest(10, "SQ_h")[["date", "SQ_h"]]
+        fig3 = px.bar(top_sun, x="date", y="SQ_h",
+                      title="Top 10 zonnigste dagen", text_auto=".1f", color="SQ_h",
+                      color_continuous_scale="Oranges")
+        st.plotly_chart(fig3, use_container_width=True)
