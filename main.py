@@ -128,9 +128,20 @@ elif page == "Temperatuur Trends":
     use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
 
     if use_cols:
+        # Mapping van kolomnamen naar labels
+        label_map = {"TN_C": "Min temp", "TG_C": "Gem temp", "TX_C": "Max temp"}
+
         temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
-        fig = px.line(temp, x="date", y="temp_C", color="type",
-                      title="Dagelijkse temperatuur (min, gem, max)")
+        temp["type"] = temp["type"].replace(label_map)
+
+        fig = px.line(
+            temp,
+            x="date",
+            y="temp_C",
+            color="type",
+            title="Dagelijkse temperatuur (min, gem, max)",
+            labels={"temp_C": "Temperatuur (°C)", "date": "Datum", "type": "Type"},
+        )
         st.plotly_chart(fig, use_container_width=True)
 
 elif page == "Neerslag & Zon":
