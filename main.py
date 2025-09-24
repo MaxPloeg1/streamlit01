@@ -217,5 +217,5 @@ elif page == "Neerslag & Zon":
             showlegend=False
         )
 
-st.plotly_chart(fig_temp_rain, use_container_width=True)
+        st.plotly_chart(fig_temp_rain, use_container_width=True)
 
