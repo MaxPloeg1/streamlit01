@@ -174,25 +174,33 @@ elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
 
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
-        # 1. Boxplot: zonuren per neerslagcategorie
         bins = [0, 1, 5, 10, 50]
         labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
 
-        # Zet categorische volgorde vast
-        df["rain_cat"] = pd.Categorical(
-            df["rain_cat"],
-            categories=["0 mm", "0–5 mm", "5–10 mm", "10+ mm"],
-            ordered=True
-        )
+        # 1) Duidelijke gewenste volgorde
+        ordered_cats = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
+        df["rain_cat"] = pd.Categorical(df["rain_cat"], categories=ordered_cats, ordered=True)
+
+        # 2) (Optioneel) vaste kleuren per categorie zodat legend en kleuren overeenkomen
+        color_map = {
+            "0 mm": "#d7263d",     # rood
+            "0–5 mm": "#0e6eb8",   # donkerblauw
+            "5–10 mm": "#74a9cf",  # lichtblauw
+            "10+ mm": "#eab0b6"    # roze/tint
+        }
 
         fig_box = px.box(
-            df, x="rain_cat", y="SQ_h",
+            df,
+            x="rain_cat", y="SQ_h",
             color="rain_cat",
+            category_orders={"rain_cat": ordered_cats},   # zwingt Plotly naar deze volgorde
+            color_discrete_map=color_map,
             title="📦 Verdeling zonuren per neerslagcategorie",
             labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
             points="all"
         )
+
         st.plotly_chart(fig_box, use_container_width=True)
 
                 # Neerslag in categorieën indelen
