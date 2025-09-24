@@ -153,6 +153,13 @@ elif page == "Neerslag & Zon":
         labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
 
+        # Zet categorische volgorde vast
+        df["rain_cat"] = pd.Categorical(
+            df["rain_cat"],
+            categories=["0 mm", "0–5 mm", "5–10 mm", "10+ mm"],
+            ordered=True
+        )
+
         fig_box = px.box(
             df, x="rain_cat", y="SQ_h",
             color="rain_cat",
@@ -161,6 +168,7 @@ elif page == "Neerslag & Zon":
             points="all"
         )
         st.plotly_chart(fig_box, use_container_width=True)
+
 
         # 2. Gemiddelde zonuren bij toenemende regen
         rain_bins = pd.cut(df["RH_mm"], bins=20)
