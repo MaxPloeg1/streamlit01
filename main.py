@@ -193,7 +193,7 @@ elif page == "Neerslag & Zon":
             df["RH_mm"], 
             bins=[0, 1, 5, 10, 20, 50], 
             include_lowest=True, 
-            labels=["0 mm", "0–1 mm", "1–5 mm", "5–10 mm", "10–20 mm", "20+ mm"]
+            labels=["0–1 mm", "1–5 mm", "5–10 mm", "10–20 mm", "20+ mm"]
         )
         avg_temp_rain = df.groupby(rain_bins)["TG_C"].mean().reset_index()
 
