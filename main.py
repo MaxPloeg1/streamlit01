@@ -133,7 +133,7 @@ if page == "Overzicht":
     )
     # Daarna de uniforme stijl toepassen
     fig.update_layout(**layout_style)
-    )
+    
     st.plotly_chart(fig, use_container_width=True)
 
     # Praktische conclusie
