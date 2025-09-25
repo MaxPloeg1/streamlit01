@@ -70,6 +70,7 @@ if total_rain: kpi2.metric("🌧️ Totale Neerslag (mm)", total_rain)
 if total_sun: kpi3.metric("☀️ Totale Zonuren", total_sun)
 
 # === Pagina's ===if page == "Overzicht":
+if page == "Overzicht":
     st.header("🌍 Amsterdam: Het Weer in Verandering")
     st.subheader("Warmer – Droger – Zonniger (jaarvergelijking)")
 
@@ -79,10 +80,6 @@ if total_sun: kpi3.metric("☀️ Totale Zonuren", total_sun)
         "RH_mm": "sum",
         "SQ_h": "sum"
     }).reset_index()
-
-    scale_factor = 200
-    yearly["SQ_scaled"] = yearly["SQ_h"] / scale_factor
-
     # === Consistente layout-stijl ===
     layout_style = dict(
         font=dict(family="Arial, sans-serif", size=14, color="#ffffff"),
