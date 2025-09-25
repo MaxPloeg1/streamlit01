@@ -174,17 +174,6 @@ if page == "Overzicht":
     fig_season.update_layout(**layout_style)
     st.plotly_chart(fig_season, use_container_width=True)
 
-    # === 4. Verdeling zonuren ===
-    if "SQ_h" in df.columns:
-        fig_sun = px.histogram(
-            df, x="SQ_h", nbins=30,
-            title="☀️ Verdeling van zonuren per dag",
-            labels={"SQ_h": "Zonuren per dag", "count": "Aantal dagen"},
-            color_discrete_sequence=["#f1c40f"]
-        )
-        fig_sun.update_layout(**layout_style)
-        st.plotly_chart(fig_sun, use_container_width=True)
-
 
 
 elif page == "Temperatuur Trends":
