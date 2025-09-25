@@ -233,4 +233,99 @@ elif page == "Neerslag & Zon":
         )
 
         st.plotly_chart(fig_temp_rain, use_container_width=True)
+        elif page == "Verdeling & Topdagen":
+    st.header("📊 Verdeling & Topdagen")
+
+    # === 1. Kalender-heatmap temperatuur ===
+    if "TG_C" in df.columns and "date" in df.columns:
+        df["day"] = df["date"].dt.day
+        pivot = df.pivot_table(index="month", columns="day", values="TG_C", aggfunc="mean")
+
+        month_names = {
+            1: "Januari", 2: "Februari", 3: "Maart", 4: "April",
+            5: "Mei", 6: "Juni", 7: "Juli", 8: "Augustus",
+            9: "September", 10: "Oktober", 11: "November", 12: "December"
+        }
+        pivot.index = pivot.index.map(month_names)
+
+        fig_heatmap = px.imshow(
+            pivot,
+            color_continuous_scale="RdBu_r",
+            origin="upper",
+            aspect="auto",
+            labels=dict(color="Temperatuur (°C)", x="Dag van de maand", y="Maand")
+        )
+        fig_heatmap.update_xaxes(title="Dag van de maand", tickmode="linear")
+        fig_heatmap.update_yaxes(title="Maand", tickmode="array", tickvals=list(pivot.index), ticktext=list(pivot.index))
+        fig_heatmap.update_layout(title="📅 Kalender-heatmap: gemiddelde temperatuur per dag", title_x=0.5)
+
+        st.plotly_chart(fig_heatmap, use_container_width=True)
+
+    # === 2. Windroos ===
+    if "FG_ms" in df.columns and "DDVEC" in df.columns:
+        import matplotlib.pyplot as plt
+        from windrose import WindroseAxes
+
+        w = df[["DDVEC", "FG_ms"]].dropna()
+
+        fig_wind, ax = plt.subplots(subplot_kw={"projection": "windrose"}, figsize=(6,6))
+        ax.bar(
+            w["DDVEC"],
+            w["FG_ms"],
+            normed=True,
+            opening=0.8,
+            bins=[0, 2, 4, 6, 8, 10, 12],
+            edgecolor="white"
+        )
+        ax.set_title("🌬️ Windroos — richting & snelheid (gemiddeld)", pad=20)
+        ax.set_legend(title="m/s", loc="center left", bbox_to_anchor=(1.1, 0.5))
+
+        st.pyplot(fig_wind)
+
+    # === 3. Boxplot windsnelheid per seizoen ===
+    if "FG_ms" in df.columns and "date" in df.columns:
+        st.subheader("📦 Verdeling van windsnelheid per seizoen")
+
+        df['date'] = pd.to_datetime(df['date'])
+
+        def get_season(date):
+            m = date.month
+            if m in [3, 4, 5]:
+                return "Lente"
+            elif m in [6, 7, 8]:
+                return "Zomer"
+            elif m in [9, 10, 11]:
+                return "Herfst"
+            else:
+                return "Winter"
+
+        df['season'] = df['date'].apply(get_season)
+
+        season_order = ["Lente", "Zomer", "Herfst", "Winter"]
+        season_colors = {
+            "Lente": "#2ecc71",
+            "Zomer": "#f1c40f",
+            "Herfst": "#e67e22",
+            "Winter": "#3498db"
+        }
+
+        fig_box = px.box(
+            df,
+            x="season",
+            y="FG_ms",
+            color="season",
+            category_orders={"season": season_order},
+            color_discrete_map=season_colors,
+            points="all"
+        )
+        fig_box.update_traces(line_width=3)
+        fig_box.update_layout(
+            title="📦 Verdeling windsnelheid per seizoen",
+            xaxis_title="Seizoen",
+            yaxis_title="Gemiddelde windsnelheid (m/s)",
+            title_x=0.5,
+            boxmode="group"
+        )
+
+        st.plotly_chart(fig_box, use_container_width=True)
 
