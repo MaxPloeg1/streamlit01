@@ -192,6 +192,33 @@ elif page == "Temperatuur Trends":
         )
         st.plotly_chart(fig, use_container_width=True)
 
+# Boxplot temperatuur per maand
+df["month_name"] = df["date"].dt.month_name()
+
+fig_box = px.box(
+    df, x="month_name", y="TG_C",
+    category_orders={"month_name": [
+        "January","February","March","April","May","June",
+        "July","August","September","October","November","December"
+    ]},
+    title="📦 Verdeling van gemiddelde temperatuur per maand",
+    labels={"month_name": "Maand", "TG_C": "Gemiddelde temperatuur (°C)"},
+    color="month_name"
+)
+fig_box.update_traces(line_width=2)
+st.plotly_chart(fig_box, use_container_width=True)
+
+season_temp = df.groupby("season")["TG_C"].mean().reset_index()
+season_colors = {"winter": "#3498db", "lente": "#2ecc71", "zomer": "#f1c40f", "herfst": "#e67e22"}
+
+fig_season = px.bar(
+    season_temp, x="season", y="TG_C", color="season",
+    title="🌦️ Gemiddelde temperatuur per seizoen",
+    labels={"season": "Seizoen", "TG_C": "Gemiddelde Temp (°C)"},
+    color_discrete_map=season_colors
+)
+st.plotly_chart(fig_season, use_container_width=True)
+
 elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
 
