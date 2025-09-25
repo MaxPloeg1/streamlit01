@@ -159,16 +159,45 @@ elif page == "Temperatuur Trends":
     use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
 
     if use_cols:
+        # Mapping van kolomnamen naar labels
         label_map = {"TN_C": "Min temp", "TG_C": "Gem temp", "TX_C": "Max temp"}
+
         temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
         temp["type"] = temp["type"].replace(label_map)
 
+        # Dagelijkse temperaturen plotten
         fig = px.line(
-            temp, x="date", y="temp_C", color="type",
+            temp,
+            x="date",
+            y="temp_C",
+            color="type",
             title="Dagelijkse temperatuur (min, gem, max)",
             labels={"temp_C": "Temperatuur (°C)", "date": "Datum", "type": "Type"},
         )
         st.plotly_chart(fig, use_container_width=True)
+
+    # === Extra grafiek: Hitte- en vorstdagen per jaar ===
+    if "TX_C" in df.columns and "TN_C" in df.columns:
+        df["hitte_dag"] = df["TX_C"] > 25   # max temp boven 25°C
+        df["vorst_dag"] = df["TN_C"] < 0    # min temp onder 0°C
+
+        extreme_days = df.groupby("year").agg({
+            "hitte_dag": "sum",
+            "vorst_dag": "sum"
+        }).reset_index()
+
+        fig_extremes = px.bar(
+            extreme_days, x="year", y=["hitte_dag", "vorst_dag"],
+            barmode="group",
+            labels={"value": "Aantal dagen", "year": "Jaar", "variable": "Categorie"},
+            title="🌡️ Extreem weer: aantal hitte- en vorstdagen per jaar",
+            color_discrete_map={
+                "hitte_dag": "tomato",
+                "vorst_dag": "royalblue"
+            }
+        )
+        st.plotly_chart(fig_extremes, use_container_width=True)
+        st.caption("👉 Je ziet dat er steeds meer hitte-dagen en minder vorst-dagen voorkomen, een duidelijk effect van klimaatverandering.")
 
 elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
