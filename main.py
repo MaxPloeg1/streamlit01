@@ -30,10 +30,6 @@ def load_data(path: str):
     make_scaled("RH", "RH_mm")
     make_scaled("SQ", "SQ_h")
 
-    # Windsnelheid berekenen (FG = in tienden m/s bij KNMI)
-    if "FG" in df.columns:
-        df["FG_ms"] = pd.to_numeric(df["FG"], errors="coerce") / 10.0
-
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["week"] = df["date"].dt.isocalendar().week
@@ -69,7 +65,6 @@ if avg_temp: kpi1.metric("🌡️ Gemiddelde Temp (°C)", avg_temp)
 if total_rain: kpi2.metric("🌧️ Totale Neerslag (mm)", total_rain)
 if total_sun: kpi3.metric("☀️ Totale Zonuren", total_sun)
 
-# === Pagina's ===
 if page == "Overzicht":
     st.header("🌍 Amsterdam: Het Weer in Verandering")
     st.subheader("Warmer – Droger – Zonniger (jaarvergelijking)")
@@ -123,49 +118,69 @@ if page == "Overzicht":
             f"dan in {yearly['year'].iloc[-2]}."
         )
 
-    # === 2. Lange termijn trend temperatuur ===
+    # === 2. Professionelere lange termijn trend ===
     avg_yearly_temp = df.groupby("year")["TG_C"].mean().reset_index()
     fig_trend = px.line(
-        avg_yearly_temp, x="year", y="TG_C", markers=True,
+        avg_yearly_temp, 
+        x="year", 
+        y="TG_C", 
+        markers=True,
         title="📈 Lange termijn trend: Gemiddelde jaartemperatuur in Amsterdam",
-        labels={"TG_C": "Gemiddelde Temp (°C)", "year": "Jaar"}
+        labels={"TG_C": "Gemiddelde Temp (°C)", "year": "Jaar"},
+        color_discrete_sequence=["#e74c3c"]
     )
-    fig_trend.update_traces(line=dict(color="tomato", width=3))
+    fig_trend.update_traces(line=dict(width=4))
+    fig_trend.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=14)
+    )
     st.plotly_chart(fig_trend, use_container_width=True)
-    st.caption("👉 Deze grafiek laat zien dat de gemiddelde jaartemperatuur structureel toeneemt, passend bij klimaatopwarming.")
 
-    # === 3. Seizoensgemiddelden ===
+    # === 3. Professionele seizoensgemiddelden ===
     season_temp = df.groupby(["year", "season"])["TG_C"].mean().reset_index()
     fig_season = px.bar(
-        season_temp, x="season", y="TG_C", color="year", barmode="group",
+        season_temp, 
+        x="season", 
+        y="TG_C", 
+        color="year", 
+        barmode="group",
         title="🌦️ Gemiddelde temperatuur per seizoen",
-        labels={"TG_C": "Gemiddelde Temp (°C)", "season": "Seizoen"}
+        labels={"TG_C": "Gemiddelde Temp (°C)", "season": "Seizoen"},
+        color_continuous_scale="Blues"
+    )
+    fig_season.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=14)
     )
     st.plotly_chart(fig_season, use_container_width=True)
-    st.caption("👉 Vooral de zomers worden warmer – dit merk je direct in hittegolven en langere warme periodes.")
 
-    # === 4. Verdeling zonuren ===
+    # === 4. Professionele zonuren verdeling ===
     fig_sun = px.histogram(
-        df, x="SQ_h", nbins=30,
+        df, 
+        x="SQ_h", 
+        nbins=30,
         title="☀️ Verdeling van zonuren per dag",
         labels={"SQ_h": "Zonuren per dag", "count": "Aantal dagen"},
-        color_discrete_sequence=["gold"]
+        color_discrete_sequence=["#f1c40f"]
+    )
+    fig_sun.update_layout(
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
+        font=dict(size=14)
     )
     st.plotly_chart(fig_sun, use_container_width=True)
-    st.caption("👉 Er komen meer dagen met extreem veel zonuren, een teken dat zomers droger en zonniger worden.")
 
 elif page == "Temperatuur Trends":
     st.header("🌡️ Temperatuur Trends")
     use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
 
     if use_cols:
-        # Mapping van kolomnamen naar labels
         label_map = {"TN_C": "Min temp", "TG_C": "Gem temp", "TX_C": "Max temp"}
-
         temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
         temp["type"] = temp["type"].replace(label_map)
 
-        # Dagelijkse temperaturen plotten
         fig = px.line(
             temp,
             x="date",
@@ -176,47 +191,19 @@ elif page == "Temperatuur Trends":
         )
         st.plotly_chart(fig, use_container_width=True)
 
-    # === Extra grafiek: Hitte- en vorstdagen per jaar ===
-    if "TX_C" in df.columns and "TN_C" in df.columns:
-        df["hitte_dag"] = df["TX_C"] > 25   # max temp boven 25°C
-        df["vorst_dag"] = df["TN_C"] < 0    # min temp onder 0°C
-
-        extreme_days = df.groupby("year").agg({
-            "hitte_dag": "sum",
-            "vorst_dag": "sum"
-        }).reset_index()
-
-        fig_extremes = px.bar(
-            extreme_days, x="year", y=["hitte_dag", "vorst_dag"],
-            barmode="group",
-            labels={"value": "Aantal dagen", "year": "Jaar", "variable": "Categorie"},
-            title="🌡️ Extreem weer: aantal hitte- en vorstdagen per jaar",
-            color_discrete_map={
-                "hitte_dag": "tomato",
-                "vorst_dag": "royalblue"
-            }
-        )
-        st.plotly_chart(fig_extremes, use_container_width=True)
-        st.caption("👉 Je ziet dat er steeds meer hitte-dagen en minder vorst-dagen voorkomen, een duidelijk effect van klimaatverandering.")
-
 elif page == "Neerslag & Zon":
     st.header("☔ Neerslag vs. Zon")
-
     if "RH_mm" in df.columns and "SQ_h" in df.columns:
         bins = [0, 1, 5, 10, 50]
         labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
-
         ordered_cats = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.Categorical(df["rain_cat"], categories=ordered_cats, ordered=True)
 
         color_map = {
-            "0 mm": "#d7263d",
-            "0–5 mm": "#0e6eb8",
-            "5–10 mm": "#74a9cf",
-            "10+ mm": "#eab0b6"
+            "0 mm": "#d7263d", "0–5 mm": "#0e6eb8",
+            "5–10 mm": "#74a9cf", "10+ mm": "#eab0b6"
         }
-
         fig_box = px.box(
             df, x="rain_cat", y="SQ_h",
             color="rain_cat",
@@ -229,18 +216,18 @@ elif page == "Neerslag & Zon":
         st.plotly_chart(fig_box, use_container_width=True)
 
         rain_bins = pd.cut(
-            df["RH_mm"], bins=[0, 1, 5, 10, 20, 50],
-            include_lowest=True,
+            df["RH_mm"], 
+            bins=[0, 1, 5, 10, 20, 50], 
+            include_lowest=True, 
             labels=["0–1 mm", "1–5 mm", "5–10 mm", "10–20 mm", "20+ mm"]
         )
         avg_temp_rain = df.groupby(rain_bins)["TG_C"].mean().reset_index()
-
         fig_temp_rain = px.bar(
             avg_temp_rain, x="RH_mm", y="TG_C",
             title="🌧️ Gemiddelde temperatuur bij toenemende regenval",
             labels={"RH_mm": "Neerslagcategorie (mm per dag)", "TG_C": "Gemiddelde temperatuur (°C)"},
             text_auto=".1f",
-            color="TG_C",
+            color="TG_C", 
             color_continuous_scale="RdYlBu_r"
         )
         fig_temp_rain.update_layout(
@@ -251,6 +238,8 @@ elif page == "Neerslag & Zon":
         st.plotly_chart(fig_temp_rain, use_container_width=True)
 
 elif page == "Verdeling & Topdagen":
+    st.header("📊 Verdeling & Topdagen")
+    # hier staan jouw aangepaste grafieken (kalender-heatmap, windroos, seizoensboxplot)
     st.header("📊 Verdeling & Topdagen")
 
     # === 1. Kalender-heatmap temperatuur ===
