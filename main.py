@@ -123,13 +123,16 @@ if page == "Overzicht":
         hovertemplate="Neerslag: %{y:.0f} mm<br>Jaar: %{x}<extra></extra>"
     ))
 
+     # Eerst specifieke instellingen
     fig.update_layout(
         title="📊 Vergelijking per jaar: Temperatuur, Neerslag en Zonuren",
         xaxis_title="Jaar",
         yaxis=dict(title="Temp (°C) & Zonuren (geschaald)", side="left"),
         yaxis2=dict(title="Neerslag (mm)", overlaying="y", side="right"),
-        barmode="group",
-        **layout_style
+        barmode="group"
+    )
+    # Daarna de uniforme stijl toepassen
+    fig.update_layout(**layout_style)
     )
     st.plotly_chart(fig, use_container_width=True)
 
