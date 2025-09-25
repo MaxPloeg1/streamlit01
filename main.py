@@ -30,6 +30,10 @@ def load_data(path: str):
     make_scaled("RH", "RH_mm")
     make_scaled("SQ", "SQ_h")
 
+    # Windsnelheid berekenen (FG = in tienden m/s bij KNMI)
+    if "FG" in df.columns:
+        df["FG_ms"] = pd.to_numeric(df["FG"], errors="coerce") / 10.0
+
     df["year"] = df["date"].dt.year
     df["month"] = df["date"].dt.month
     df["week"] = df["date"].dt.isocalendar().week
@@ -65,6 +69,7 @@ if avg_temp: kpi1.metric("🌡️ Gemiddelde Temp (°C)", avg_temp)
 if total_rain: kpi2.metric("🌧️ Totale Neerslag (mm)", total_rain)
 if total_sun: kpi3.metric("☀️ Totale Zonuren", total_sun)
 
+# === Pagina's ===
 if page == "Overzicht":
     st.header("🌍 Amsterdam: Het Weer in Verandering")
     st.subheader("Warmer – Droger – Zonniger (jaarvergelijking)")
@@ -154,17 +159,12 @@ elif page == "Temperatuur Trends":
     use_cols = [c for c in ["TN_C", "TG_C", "TX_C"] if c in df.columns]
 
     if use_cols:
-        # Mapping van kolomnamen naar labels
         label_map = {"TN_C": "Min temp", "TG_C": "Gem temp", "TX_C": "Max temp"}
-
         temp = df[["date"] + use_cols].melt("date", var_name="type", value_name="temp_C")
         temp["type"] = temp["type"].replace(label_map)
 
         fig = px.line(
-            temp,
-            x="date",
-            y="temp_C",
-            color="type",
+            temp, x="date", y="temp_C", color="type",
             title="Dagelijkse temperatuur (min, gem, max)",
             labels={"temp_C": "Temperatuur (°C)", "date": "Datum", "type": "Type"},
         )
@@ -178,69 +178,56 @@ elif page == "Neerslag & Zon":
         labels = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.cut(df["RH_mm"], bins=bins, labels=labels, include_lowest=True)
 
-        # 1) Duidelijke gewenste volgorde
         ordered_cats = ["0 mm", "0–5 mm", "5–10 mm", "10+ mm"]
         df["rain_cat"] = pd.Categorical(df["rain_cat"], categories=ordered_cats, ordered=True)
 
-        # 2) (Optioneel) vaste kleuren per categorie zodat legend en kleuren overeenkomen
         color_map = {
-            "0 mm": "#d7263d",     # rood
-            "0–5 mm": "#0e6eb8",   # donkerblauw
-            "5–10 mm": "#74a9cf",  # lichtblauw
-            "10+ mm": "#eab0b6"    # roze/tint
+            "0 mm": "#d7263d",
+            "0–5 mm": "#0e6eb8",
+            "5–10 mm": "#74a9cf",
+            "10+ mm": "#eab0b6"
         }
 
         fig_box = px.box(
-            df,
-            x="rain_cat", y="SQ_h",
+            df, x="rain_cat", y="SQ_h",
             color="rain_cat",
-            category_orders={"rain_cat": ordered_cats},   # zwingt Plotly naar deze volgorde
+            category_orders={"rain_cat": ordered_cats},
             color_discrete_map=color_map,
             title="📦 Verdeling zonuren per neerslagcategorie",
             labels={"SQ_h": "Zonuren", "rain_cat": "Neerslagcategorie"},
             points="all"
         )
-
         st.plotly_chart(fig_box, use_container_width=True)
 
-                # Neerslag in categorieën indelen
         rain_bins = pd.cut(
-            df["RH_mm"], 
-            bins=[0, 1, 5, 10, 20, 50], 
-            include_lowest=True, 
+            df["RH_mm"], bins=[0, 1, 5, 10, 20, 50],
+            include_lowest=True,
             labels=["0–1 mm", "1–5 mm", "5–10 mm", "10–20 mm", "20+ mm"]
         )
         avg_temp_rain = df.groupby(rain_bins)["TG_C"].mean().reset_index()
 
-        # Balkdiagram maken
         fig_temp_rain = px.bar(
             avg_temp_rain, x="RH_mm", y="TG_C",
             title="🌧️ Gemiddelde temperatuur bij toenemende regenval",
-            labels={
-                "RH_mm": "Neerslagcategorie (mm per dag)", 
-                "TG_C": "Gemiddelde temperatuur (°C)"
-            },
-            text_auto=".1f",  # toon de temperatuurwaarden op de bars
-            color="TG_C", 
+            labels={"RH_mm": "Neerslagcategorie (mm per dag)", "TG_C": "Gemiddelde temperatuur (°C)"},
+            text_auto=".1f",
+            color="TG_C",
             color_continuous_scale="RdYlBu_r"
         )
-
-        # Layout verbeteren
         fig_temp_rain.update_layout(
             xaxis_title="Neerslagcategorie (mm per dag)",
             yaxis_title="Gemiddelde temperatuur (°C)",
             showlegend=False
         )
-
         st.plotly_chart(fig_temp_rain, use_container_width=True)
-        elif page == "Verdeling & Topdagen":
+
+elif page == "Verdeling & Topdagen":
     st.header("📊 Verdeling & Topdagen")
 
     # === 1. Kalender-heatmap temperatuur ===
     if "TG_C" in df.columns and "date" in df.columns:
         df["day"] = df["date"].dt.day
         pivot = df.pivot_table(index="month", columns="day", values="TG_C", aggfunc="mean")
-
         month_names = {
             1: "Januari", 2: "Februari", 3: "Maart", 4: "April",
             5: "Mei", 6: "Juni", 7: "Juli", 8: "Augustus",
@@ -256,7 +243,8 @@ elif page == "Neerslag & Zon":
             labels=dict(color="Temperatuur (°C)", x="Dag van de maand", y="Maand")
         )
         fig_heatmap.update_xaxes(title="Dag van de maand", tickmode="linear")
-        fig_heatmap.update_yaxes(title="Maand", tickmode="array", tickvals=list(pivot.index), ticktext=list(pivot.index))
+        fig_heatmap.update_yaxes(title="Maand", tickmode="array",
+                                 tickvals=list(pivot.index), ticktext=list(pivot.index))
         fig_heatmap.update_layout(title="📅 Kalender-heatmap: gemiddelde temperatuur per dag", title_x=0.5)
 
         st.plotly_chart(fig_heatmap, use_container_width=True)
@@ -285,8 +273,6 @@ elif page == "Neerslag & Zon":
     # === 3. Boxplot windsnelheid per seizoen ===
     if "FG_ms" in df.columns and "date" in df.columns:
         st.subheader("📦 Verdeling van windsnelheid per seizoen")
-
-        df['date'] = pd.to_datetime(df['date'])
 
         def get_season(date):
             m = date.month
@@ -328,4 +314,3 @@ elif page == "Neerslag & Zon":
         )
 
         st.plotly_chart(fig_box, use_container_width=True)
-
