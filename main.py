@@ -75,11 +75,18 @@ if page == "Overzicht":
     st.subheader("Warmer – Droger – Zonniger (jaarvergelijking)")
 
     # === Data voorbereiden ===
-    yearly = df.groupby("year").agg({
-        "TG_C": "mean",
-        "RH_mm": "sum",
-        "SQ_h": "sum"
-    }).reset_index()
+    agg_dict = {"TG_C": "mean", "RH_mm": "sum"}
+    if "SQ_h" in df.columns:  # alleen zonuren meenemen als het bestaat
+        agg_dict["SQ_h"] = "sum"
+
+    yearly = df.groupby("year").agg(agg_dict).reset_index()
+
+    if "SQ_h" in yearly.columns:
+        scale_factor = 200
+        yearly["SQ_scaled"] = yearly["SQ_h"] / scale_factor
+    else:
+        yearly["SQ_scaled"] = 0
+
     # === Consistente layout-stijl ===
     layout_style = dict(
         font=dict(family="Arial, sans-serif", size=14, color="#ffffff"),
@@ -100,12 +107,15 @@ if page == "Overzicht":
         name="Gem. Temp (°C)", marker_color="#e74c3c",
         hovertemplate="Gem. Temp: %{y:.1f} °C<br>Jaar: %{x}<extra></extra>"
     ))
-    fig.add_trace(go.Bar(
-        x=yearly["year"], y=yearly["SQ_scaled"],
-        name=f"Zonuren (x{scale_factor}h)", marker_color="#f1c40f",
-        hovertemplate="Zonuren: %{customdata} uur<br>Jaar: %{x}<extra></extra>",
-        customdata=yearly["SQ_h"]
-    ))
+
+    if "SQ_h" in df.columns:
+        fig.add_trace(go.Bar(
+            x=yearly["year"], y=yearly["SQ_scaled"],
+            name=f"Zonuren (x{scale_factor}h)", marker_color="#f1c40f",
+            hovertemplate="Zonuren: %{customdata} uur<br>Jaar: %{x}<extra></extra>",
+            customdata=yearly["SQ_h"]
+        ))
+
     fig.add_trace(go.Scatter(
         x=yearly["year"], y=yearly["RH_mm"],
         name="Neerslag (mm)", mode="lines+markers",
@@ -127,7 +137,7 @@ if page == "Overzicht":
     if len(yearly) >= 2:
         diff_temp = yearly["TG_C"].iloc[-1] - yearly["TG_C"].iloc[-2]
         diff_rain = yearly["RH_mm"].iloc[-2] - yearly["RH_mm"].iloc[-1]
-        diff_sun = yearly["SQ_h"].iloc[-1] - yearly["SQ_h"].iloc[-2]
+        diff_sun = yearly["SQ_h"].iloc[-1] - yearly["SQ_h"].iloc[-2] if "SQ_h" in yearly.columns else 0
         st.info(
             f"In {yearly['year'].iloc[-1]} was het gemiddeld {diff_temp:.1f}°C warmer, "
             f"viel er {diff_rain:.0f} mm minder regen en scheen de zon {diff_sun:.0f} uur langer "
@@ -162,14 +172,17 @@ if page == "Overzicht":
     st.plotly_chart(fig_season, use_container_width=True)
 
     # === 4. Verdeling zonuren ===
-    fig_sun = px.histogram(
-        df, x="SQ_h", nbins=30,
-        title="☀️ Verdeling van zonuren per dag",
-        labels={"SQ_h": "Zonuren per dag", "count": "Aantal dagen"},
-        color_discrete_sequence=["#f1c40f"]
-    )
-    fig_sun.update_layout(**layout_style)
-    st.plotly_chart(fig_sun, use_container_width=True)
+    if "SQ_h" in df.columns:
+        fig_sun = px.histogram(
+            df, x="SQ_h", nbins=30,
+            title="☀️ Verdeling van zonuren per dag",
+            labels={"SQ_h": "Zonuren per dag", "count": "Aantal dagen"},
+            color_discrete_sequence=["#f1c40f"]
+        )
+        fig_sun.update_layout(**layout_style)
+        st.plotly_chart(fig_sun, use_container_width=True)
+
+
 
 elif page == "Temperatuur Trends":
     st.header("🌡️ Temperatuur Trends")
