@@ -56,7 +56,7 @@ df = load_data(datasets[dataset_choice])
 
 page = st.sidebar.radio(
     "Select a page",
-    ["Overzicht", "Temperatuur Trends", "Neerslag & Zon", "Wintrends & Topdagen"]
+    ["Overzicht", "Temperatuur Trends", "Neerslag & Zon", "Windtrends & Topdagen"]
 )
 
 # === KPI-tegels ===
