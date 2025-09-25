@@ -270,8 +270,8 @@ elif page == "Neerslag & Zon":
         )
         st.plotly_chart(fig_temp_rain, use_container_width=True)
 
-elif page == "Verdeling & Topdagen":
-    st.header("📊 Verdeling & Topdagen")
+elif page == "Windtrends & Topdagen":
+    st.header("📊 Windtrends & Topdagen")
 
     # === 1. Kalender-heatmap temperatuur ===
     if "TG_C" in df.columns and "date" in df.columns:
@@ -314,7 +314,7 @@ elif page == "Verdeling & Topdagen":
             bins=[0, 2, 4, 6, 8, 10, 12],
             edgecolor="white"
         )
-        ax.set_title("🌬️ Windroos — richting & snelheid (gemiddeld)", pad=20)
+        ax.set_title("Windroos — richting & snelheid (gemiddeld)", pad=20)
         ax.set_legend(title="m/s", loc="center left", bbox_to_anchor=(1.1, 0.5))
 
         st.pyplot(fig_wind)
