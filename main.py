@@ -7,6 +7,11 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+import pydeck as pdk
+from streamlit_folium import st_folium
+import folium
+from folium.plugins import MarkerCluster, HeatMap
+import os 
 
 # =========================
 # === Data inlezen =========
@@ -585,46 +590,214 @@ elif page == "Voorspelling":
 
 
 # =========================
-# === Kaart ===============
+# === Kaart =========
 # =========================
 elif page == "Kaart":
-    st.header("🗺️ Interactieve kaart (MapLibre)")
-    needed = {"latitude", "longitude", "TG_C"}
-    if needed.issubset(df.columns):
-        st.caption("Kleur = temperatuur (°C), grootte = neerslag (mm). Zoom en klik voor details.")
+    st.header("🗺️ Stations Map Vergelijking (Amsterdam • Lauwersoog • Maastricht)")
 
-        # Zorg dat size nooit negatief is
-        if "RH_mm" in df.columns:
-            size_series = pd.to_numeric(df["RH_mm"], errors="coerce").fillna(0).clip(lower=0)
+    # --- 1) Definieer de 3 stations + bronnen ---
+    stations = {
+        "Amsterdam": {
+            "coords": (52.3702, 4.8952),
+            "paths": [
+                "amsterdam_2021_2022.json",
+                "amsterdam_2022_2023.json",
+                "amsterdam_2023_2024.json",
+            ],
+        },
+        "Lauwersoog": {
+            "coords": (53.4053, 6.2063),
+            "paths": [
+                "lauwersoog_2021_2022.json",
+                "lauwersoog_2022_2023.json",
+                "lauwersoog_2023_2024.json",
+            ],
+        },
+        "Maastricht": {
+            "coords": (50.8514, 5.6900),
+            "paths": [
+                "maastricht_2021_2022.json",
+                "maastricht_2022_2023.json",
+                "maastricht_2023_2024.json",
+            ],
+        },
+    }   
+
+    # --- 2) Data inlezen met je bestaande load_data() ---
+    frames = []
+    for city, meta in stations.items():
+        parts = []
+        for path in meta["paths"]:
+            if not os.path.exists(path):
+                st.warning(f"{city}: bestand niet gevonden → {path}")
+                continue
+            try:
+                df_city_year = load_data(path)
+                parts.append(df_city_year)
+            except Exception as e:
+                st.error(f"Fout bij laden {city} ({path}): {e}")
+        if parts:
+            df_city = pd.concat(parts, ignore_index=True)
+            df_city["city"] = city
+            df_city["latitude"], df_city["longitude"] = meta["coords"]
+            frames.append(df_city)
+
+    if not frames:
+        st.error("Geen stationsdata beschikbaar (controleer bestandsnamen).")
+        st.stop()
+
+    df_all = pd.concat(frames, ignore_index=True)
+
+
+    # --- 3) Filters (jaar/maand en metriek) ---
+    c1, c2, c3 = st.columns([1,1,2])
+
+    years_all = sorted(df_all["year"].dropna().unique().astype(int))
+    sel_years = c1.multiselect("Jaar", years_all, default=years_all)
+
+    # kies één specifieke maand of 'Alle maanden'
+    months_all = list(range(1,13))
+    month_names = {i: pd.to_datetime(str(i), format="%m").month_name()[:3] for i in months_all}
+    sel_month = c2.selectbox("Maand", options=["Alle"] + months_all, format_func=lambda x: x if x=="Alle" else f"{x:02d} - {month_names[x]}")
+
+    metric_options = {
+        "Gemiddelde temperatuur (°C)": ("TG_C", "mean", "°C"),
+        "Minimum temperatuur (°C)"    : ("TN_C", "mean", "°C"),
+        "Maximum temperatuur (°C)"    : ("TX_C", "mean", "°C"),
+        "Neerslag (mm, som)"          : ("RH_mm","sum",  "mm"),
+        "Zonuren (uur, som)"          : ("SQ_h", "sum",  "uur"),
+        "Gemiddelde wind (m/s)"       : ("FG_ms","mean", "m/s"),
+    }
+    sel_metric_label = c3.selectbox("Metriek", list(metric_options.keys()))
+    metric_col, agg_fn, metric_unit = metric_options[sel_metric_label]
+
+    # --- 4) Filter toepassen ---
+    dff = df_all[df_all["year"].isin(sel_years)].copy()
+    if sel_month != "Alle":
+        dff = dff[dff["month"] == int(sel_month)]
+
+    # check dat metriek bestaat in alle stations
+    if metric_col not in dff.columns:
+        st.info(f"Metriek {metric_col} ontbreekt in data.")
+        st.stop()
+
+    # --- 5) Aggregatie per station (per jaar óf per jaar+maand) ---
+    group_cols = ["city", "year"]
+    if sel_month != "Alle":
+        group_cols.append("month")
+
+    agg = dff.groupby(group_cols, as_index=False)[metric_col].agg(agg_fn)
+
+    # Voor de kaart willen we één waarde per station tonen.
+    # Kies aggregatie over de geselecteerde jaren/maanden -> per station één punt:
+    agg_station = dff.groupby("city", as_index=False)[metric_col].agg(agg_fn)
+    # Voeg lat/lon erbij (neem de eerste – is per station constant)
+    coords = dff.groupby("city")[["latitude","longitude"]].first().reset_index()
+    agg_station = agg_station.merge(coords, on="city", how="left")
+
+    # --- 6) Kaart met pydeck: kleur + radius schalen op metriek ---
+    import pydeck as pdk
+    val = agg_station[metric_col].fillna(0.0)
+    vmin, vmax = float(val.min()), float(val.max())
+    if vmin == vmax:  # voorkom divide-by-zero
+        vmax = vmin + 1e-9
+
+    def color_scale(v):
+        # blauw -> geel -> rood
+        # normaliseer 0..1
+        t = (v - vmin) / (vmax - vmin)
+        # eenvoudige 3-kleur interpolatie
+        # low (0): blauw (70,120,240), mid (0.5): geel (240,200,40), high (1): rood (230,70,60)
+        if t <= 0.5:
+            # tussen blauw en geel
+            a = t / 0.5
+            r = 70 + a*(240-70)
+            g = 120 + a*(200-120)
+            b = 240 + a*(40-240)
         else:
-            size_series = None
+            a = (t - 0.5) / 0.5
+            r = 240 + a*(230-240)
+            g = 200 + a*(70-200)
+            b = 40  + a*(60-40)
+        return [int(r), int(g), int(b), 180]
 
-        size_max = st.slider("Maximale bubbelgrootte (px)", 5, 50, 20, step=1)
+    agg_station["color"] = agg_station[metric_col].apply(color_scale)
+    # radius (meters): schaal op range; caps zetten voor leesbaarheid
+    rmin, rmax = 2000, 12000
+    agg_station["radius"] = rmin + (agg_station[metric_col]-vmin) * (rmax-rmin) / (vmax - vmin if vmax>vmin else 1)
+    agg_station[metric_col + "_txt"] = agg_station[metric_col].astype(float).map(lambda x: f"{x:.2f}")
 
-        fig_map = px.scatter_map(
-            df,
-            lat="latitude",
-            lon="longitude",
-            color="TG_C",
-            size=size_series,        # array-like toegestaan
-            size_max=size_max,       # >>> juiste manier om bubbelgrootte te begrenzen
-            hover_name=df["date"].dt.strftime("%Y-%m-%d"),
-            hover_data={
-                "TG_C": True,
-                "RH_mm": "RH_mm" in df.columns,
-                "SQ_h": "SQ_h" in df.columns,
-                "latitude": False,
-                "longitude": False,
-            },
-            title=f"Meetpunten — {selected_city}",
-            color_continuous_scale="RdYlBu_r",
-            zoom=6,
-            height=600,
-            map_style="carto-positron",
+
+    st.subheader("Kaart — waarde per station (kleur = laag→hoog, grootte = waarde)")
+    tooltip_html = (
+        "<b>{city}</b><br/>"
+        + sel_metric_label + ": <b>{" + metric_col + "_txt}</b> " + metric_unit + "<br/>"
+        + "Jaren: " + (", ".join(map(str, sel_years)) if sel_years else "–") + "<br/>"
+        + "Maand: " + (month_names[int(sel_month)] if sel_month != "Alle" else "Alle")
+    )
+    layer = pdk.Layer(
+        "ScatterplotLayer",
+        data=agg_station,
+        get_position=["longitude","latitude"],
+        get_radius="radius",
+        get_fill_color="color",
+        pickable=True,
+        stroked=True,
+        get_line_color=[0,0,0,200],
+        line_width_min_pixels=1,
+    )
+
+    center_lat = agg_station["latitude"].mean()
+    center_lon = agg_station["longitude"].mean()
+    view_state = pdk.ViewState(latitude=center_lat, longitude=center_lon, zoom=6.2)
+
+    deck = pdk.Deck(
+        layers=[layer],
+        initial_view_state=view_state,
+        tooltip={"html": tooltip_html, "style": {"color": "white"}}
+    )
+    st.pydeck_chart(deck, use_container_width=True)
+
+    # --- 7) Vergelijkingsplot (bars per station) ---
+    st.subheader("Vergelijking per station")
+
+    # Aggregatie per jaar en station
+    by_year_df = dff.groupby(["year","city"], as_index=False)[metric_col].agg(agg_fn)
+
+    if by_year_df["year"].nunique() >= 2:
+        # Trend per station over de jaren (markers aan)
+        figb = px.line(
+            by_year_df,
+            x="year", y=metric_col, color="city", markers=True,
+            labels={"year": "Jaar", "city": "Station", metric_col: sel_metric_label},
+            title=f"{sel_metric_label} — trend per station over jaren"
         )
-
-        st.plotly_chart(fig_map, use_container_width=True)
+        figb.update_traces(line=dict(width=2), marker=dict(size=9))
+        # Optioneel: vergelijkbare y-as
+        # figb.update_yaxes(rangemode="tozero")
     else:
-        ontbrekend = ", ".join(sorted(needed - set(df.columns)))
-        st.info(f"Geen locatiegegevens beschikbaar (mis: {ontbrekend}). "
-                f"Coördinaten per stad worden automatisch gezet; controleer of de dataset geladen is.")
+        # Fallback: één jaar geselecteerd → dot plot per station
+        y_selected = int(by_year_df["year"].iloc[0])
+        dot = by_year_df.sort_values(metric_col, ascending=True)
+        figb = px.scatter(
+            dot, x=metric_col, y="city",
+            labels={"city": "Station", metric_col: sel_metric_label},
+            title=f"{sel_metric_label} — per station (jaar {y_selected})",
+            color="city"
+        )
+        figb.update_traces(
+            marker=dict(size=14, line=dict(width=1, color="rgba(0,0,0,0.3)")),
+            hovertemplate="Station: %{y}<br>" + sel_metric_label + ": %{x:.2f}<extra></extra>"
+        )
+        figb.update_layout(xaxis=dict(showgrid=True, gridcolor="rgba(200,200,200,0.2)"))
+
+    st.plotly_chart(figb, use_container_width=True)
+
+
+
+
+    # --- 9) Kleine legenda/omschrijving ---
+    st.caption(
+        "Cirkels: hoe groter en roder, hoe hoger de geselecteerde metriek. "
+        "Filters bovenaan: kies jaren en één maand (of Alle) om verschillen door het jaar heen te bekijken."
+    )
