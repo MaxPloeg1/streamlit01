@@ -109,21 +109,6 @@ page = st.sidebar.radio(
 )
 
 # =========================
-# === KPI tegels ==========
-# =========================
-avg_temp = df["TG_C"].mean() if "TG_C" in df.columns else np.nan
-total_rain = df["RH_mm"].sum() if "RH_mm" in df.columns else np.nan
-total_sun = df["SQ_h"].sum() if "SQ_h" in df.columns else np.nan
-
-kpi1, kpi2, kpi3 = st.columns(3)
-if not math.isnan(avg_temp):
-    kpi1.metric("🌡️ Gemiddelde Temp (°C)", f"{avg_temp:.1f}")
-if not math.isnan(total_rain):
-    kpi2.metric("🌧️ Totale Neerslag (mm)", f"{total_rain:.1f}")
-if not math.isnan(total_sun):
-    kpi3.metric("☀️ Totale Zonuren", f"{total_sun:.1f}")
-
-# =========================
 # === Overzicht ===========
 # =========================
 if page == "Overzicht":
@@ -476,13 +461,22 @@ elif page == "Voorspelling":
             if col in work.columns:
                 candidate_features.append(col)
 
-        # Multiselect voor features
+        # Friendly names for features so the UI shows clear labels instead of raw column names
+        friendly_feature_names = {
+            "RH_mm": "Neerslag (mm)",
+            "SQ_h": "Zonuren (uur)",
+            "FG_ms": "Windsnelheid (m/s)"
+        }
+
+        # Multiselect voor features (toont vriendelijke namen, maar gebruikt de kolomnamen intern)
         default_feats = ["RH_mm", "SQ_h", "FG_ms"]
         default_feats = [f for f in default_feats if f in candidate_features]
         feature_choice = st.multiselect(
-            "Kies invoer-features (naast seizoenssignal):",
+            "Kies extra invoer-variabelen (optioneel):",
             options=candidate_features,
-            default=default_feats
+            format_func=lambda x: friendly_feature_names.get(x, x),
+            default=default_feats,
+            help="Selecteer hier welke externe variabelen (regen/zon/wind) je wilt gebruiken naast de seizoensfeatures."
         )
 
         # Definitieve feature set
@@ -559,13 +553,12 @@ elif page == "Voorspelling":
             )
             st.plotly_chart(fig_imp, use_container_width=True)
 
-        st.subheader("🔮 Snelle datum-voorspelling (alleen seizoenseffecten)")
-        st.caption("Handig als je exogene variabelen (regen/zon/wind) niet weet: gebruikt enkel sin/cos van datum.")
-        # Enkele-datum-voorspelling op basis van seizoensfeatures:
-        # We trainen een tweede, simpel model met alleen sin/cos
+        st.subheader("🔮 Snelle datum-voorspelling")
+        st.caption("Kies een dag van het jaar. Voor extra invoer-features: gebruik de selectie bovenaan deze pagina (toonende vriendelijke namen).")
+
+        # Enkele-datum-voorspelling op basis van seizoensfeatures (slechts één dag-slider)
         X_season = work[["sin_doy", "cos_doy", "sin_mon", "cos_mon"]]
         y_season = work["TG_C"]
-        # Zelfde type model als gekozen (LR of RF), zodat consistent
         model_season = type(model)() if model_choice == "Lineaire Regressie" else type(model)(
             n_estimators=model.n_estimators if hasattr(model, "n_estimators") else 200,
             max_depth=model.max_depth if hasattr(model, "max_depth") else 8,
@@ -574,19 +567,21 @@ elif page == "Voorspelling":
         )
         model_season.fit(X_season, y_season)
 
-        dcol1, dcol2 = st.columns(2)
-        sel_month = dcol1.slider("Maand", 1, 12, 7)
-        sel_dayofyear = dcol2.slider("Dag van het jaar", 1, 366, 200)
+        sel_dayofyear = st.slider("Dag van het jaar", 1, 366, 200)
 
         sin_doy = math.sin(2 * math.pi * sel_dayofyear / 365.25)
         cos_doy = math.cos(2 * math.pi * sel_dayofyear / 365.25)
+        # bepaal maand uit dag van het jaar (jaar 2000 is schrikkeljaar-safe voor indexering)
+        from datetime import datetime, timedelta
+        tmp_date = datetime(2000, 1, 1) + timedelta(days=sel_dayofyear - 1)
+        sel_month = tmp_date.month
         sin_mon = math.sin(2 * math.pi * sel_month / 12.0)
         cos_mon = math.cos(2 * math.pi * sel_month / 12.0)
 
         temp_pred_simple = model_season.predict(
             pd.DataFrame([{"sin_doy": sin_doy, "cos_doy": cos_doy, "sin_mon": sin_mon, "cos_mon": cos_mon}])
         )[0]
-        st.success(f"Geschatte etmaaltemperatuur (alleen seizoenseffecten): **{temp_pred_simple:.1f} °C**")
+        st.success(f"Geschatte etmaaltemperatuur (seizoen-only): **{temp_pred_simple:.1f} °C**")
 
 
 # =========================
