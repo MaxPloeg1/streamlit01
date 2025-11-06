@@ -151,7 +151,7 @@ for start, end, filename in periods:
     r.raise_for_status()
     with open(filename, "wb") as f:
         f.write(r.content)
-    print(f"✅ Saved {filename}")
+    print(f"Saved {filename}")
 ```
 
 Hiermee worden de data-bestanden direct van KNMI opgehaald en lokaal opgeslagen. Zo blijft het dashboard altijd actueel en transparant over de herkomst van de gegevens.
