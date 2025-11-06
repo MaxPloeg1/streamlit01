@@ -119,7 +119,7 @@ We analyseren gegevens uit **Amsterdam**, **Lauwersoog** en **Maastricht** over 
 Deze steden zijn geselecteerd vanwege hun geografische spreiding binnen Nederland.                  
 
 Inhoud van het dashboard:
-- **Temperatuur Trends:** ontdek hoe temperatuur zich door een jaar heen ontwikkeld.  
+- **Temperatuur Trends:** ontdek hoe temperatuur zich door een jaar heen ontwikkelt.  
 - **Neerslag & Zon:** vergelijk temperatuur en zonuren met de regenval 
 - **Windtrends & Topdagen:** bekijk de heetste dagen en krachtigste wind.
 - **Voorspelling:** gebruik onze voorspelfunctie om de temperatuur te schatten op basis van zonuren, neerslag en wind.  
@@ -127,6 +127,34 @@ Inhoud van het dashboard:
 
 Of je nu geïnteresseerd bent in klimaatverandering, planning van buitenactiviteiten of gewoon nieuwsgierig bent naar het Nederlandse weer —  
 dit dashboard biedt **inzicht, overzicht en voorspelling in één**.
+""")
+
+    st.markdown("""
+---
+#### Bronvermelding
+De gebruikte weerdata is afkomstig van het [KNMI Daggegevens Klimaat](https://www.daggegevens.knmi.nl/klimatologie/daggegevens). 
+Voor het ophalen van de data is een Python-script gebruikt (`request.py`), dat automatisch de daggegevens voor de gekozen stations en periodes downloadt via een API-request. 
+
+**Zo werkt het script:**
+```python
+import requests
+periods = [
+    ("20210101", "20221231", "lauwersoog_2021_2022.json"),
+    ("20220101", "20231231", "lauwersoog_2022_2023.json"),
+    ("20230101", "20241231", "lauwersoog_2023_2024.json"),
+]
+url = "https://www.daggegevens.knmi.nl/klimatologie/daggegevens"
+headers = {"Content-Type": "application/x-www-form-urlencoded"}
+for start, end, filename in periods:
+    data = f"start={start}&end={end}&stns=277&vars=ALL&fmt=json"
+    r = requests.post(url, headers=headers, data=data)
+    r.raise_for_status()
+    with open(filename, "wb") as f:
+        f.write(r.content)
+    print(f"✅ Saved {filename}")
+```
+
+Hiermee worden de data-bestanden direct van KNMI opgehaald en lokaal opgeslagen. Zo blijft het dashboard altijd actueel en transparant over de herkomst van de gegevens.
 """)
 
 # =========================
