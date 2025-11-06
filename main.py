@@ -115,12 +115,13 @@ if page == "Overzicht":
     st.header(f"{selected_city}: WeerDashboard Nederland — Overzicht")
     st.markdown("""
 Welkom bij ons **WeerDashboard**, waar je in één oogopslag het weer in verschillende Nederlandse steden kunt verkennen en begrijpen.  
-We analyseren gegevens uit **Amsterdam**, **Lauwersoog** en **Maastricht** over de periodes **2021–2024** om trends en patronen in temperatuur, neerslag, zonuren en wind zichtbaar te maken.  
+We analyseren gegevens uit **Amsterdam**, **Lauwersoog** en **Maastricht** over de periodes **2021–2024** om trends en patronen in temperatuur, neerslag, zonuren en wind zichtbaar te maken.
+Deze steden zijn geselecteerd vanwege hun geografische spreiding binnen Nederland.                  
 
-###Inhoud van het dashboard:
-- **Temperatuur Trends:** ontdek hoe temperaturen zich door de jaren heen hebben ontwikkeld.  
-- **Neerslag & Zon:** vergelijk regenval met het aantal zonuren per seizoen of jaar.  
-- **Windtrends & Topdagen:** bekijk de krachtigste winddagen en de invloed van wind op het weerbeeld.  
+Inhoud van het dashboard:
+- **Temperatuur Trends:** ontdek hoe temperatuur zich door een jaar heen ontwikkeld.  
+- **Neerslag & Zon:** vergelijk temperatuur en zonuren met de regenval 
+- **Windtrends & Topdagen:** bekijk de heetste dagen en krachtigste wind.
 - **Voorspelling:** gebruik onze voorspelfunctie om de temperatuur te schatten op basis van zonuren, neerslag en wind.  
 - **Kaart:** verken regionale verschillen in weerpatronen op een interactieve kaart.  
 
