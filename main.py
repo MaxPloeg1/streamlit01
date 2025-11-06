@@ -194,13 +194,15 @@ elif page == "Temperatuur Trends":
 
         # Gemiddelde temperatuur per seizoen
         season_temp = df.groupby("season")["TG_C"].mean().reset_index()
-        season_colors = {"winter": "#3498db", "lente": "#2ecc71", "zomer": "#f1c40f", "herfst": "#e67e22"}
+        season_order = ["lente", "zomer", "herfst", "winter"]
+        season_colors = {"lente": "#2ecc71", "zomer": "#f1c40f", "herfst": "#e67e22", "winter": "#3498db"}
 
         fig_season = px.bar(
             season_temp, x="season", y="TG_C", color="season",
             title="🌦️ Gemiddelde temperatuur per seizoen",
             labels={"season": "Seizoen", "TG_C": "Gemiddelde Temp (°C)"},
-            color_discrete_map=season_colors
+            color_discrete_map=season_colors,
+            category_orders={"season": season_order}
         )
         st.plotly_chart(fig_season, use_container_width=True)
     else:
