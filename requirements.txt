@@ -6,4 +6,4 @@ streamlit
 plotly
 windrose
 streamlit-folium
-sklearn
+scikit-learn
